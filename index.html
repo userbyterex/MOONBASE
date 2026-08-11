@@ -5,28 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#05080f" />
   <title>MOONBASE — LUNA</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <!-- TITLE -->
   <div id="screen-title" class="screen active">
-    <div class="bg-space"><div class="stars"></div><div class="nebula"></div></div>
+    <div class="bg-space"><div class="stars"></div></div>
     <div class="title-content">
-      <div class="logo-block">
-        <div class="moon-glow">☽</div>
-        <h1>MOONBASE</h1>
-        <p class="tagline">LUNA PROTOCOL</p>
-      </div>
-      <p class="pitch">Choose your faction. Launch. Claim a moon.<br>Build a living base on the lunar surface.</p>
+      <div class="logo-block"><div class="moon-glow">☽</div><h1>MOONBASE</h1><p class="tagline">LUNA PROTOCOL</p></div>
+      <p class="pitch">Build your lunar empire. Upgrade mines. Control planets.<br>Inspired by classic space strategy.</p>
       <div id="faction-select" class="faction-grid"></div>
       <div class="title-actions">
         <button id="btn-start" class="btn btn-primary" disabled><span>Select Faction</span></button>
-        <button id="btn-continue" class="btn btn-ghost hidden">Continue Mission</button>
+        <button id="btn-continue" class="btn btn-ghost hidden">Continue</button>
       </div>
-      <p class="version">Beta 1.4 · Surface Grid + Construction</p>
+      <p class="version">Beta 2.0 · OGame-style Economy</p>
     </div>
   </div>
 
@@ -35,14 +29,8 @@
     <div class="launch-stage">
       <div class="launch-sky">
         <div class="launch-stars"></div>
-        <div class="earth-horizon"></div>
-        <div id="rocket" class="rocket">
-          <div class="rocket-body">🚀</div>
-          <div class="flame"></div>
-          <div class="smoke"></div>
-        </div>
+        <div id="rocket" class="rocket"><div class="rocket-body">🚀</div><div class="flame"></div></div>
         <div class="pad"></div>
-        <div class="tower"></div>
       </div>
       <div class="launch-ui">
         <div id="launch-text" class="launch-text">IGNITION SEQUENCE</div>
@@ -56,29 +44,25 @@
   <div id="screen-hangar" class="screen">
     <div class="bg-space"><div class="stars"></div></div>
     <header class="topbar">
-      <div class="topbar-left">
-        <span class="topbar-title">Earth Hangar</span>
-        <span id="player-faction-badge" class="badge"></span>
-      </div>
+      <div class="topbar-left"><span class="topbar-title">Earth Hangar</span><span id="player-faction-badge" class="badge"></span></div>
       <button id="btn-back-title" class="btn btn-ghost btn-sm">← Back</button>
     </header>
     <div class="hangar-layout">
       <div class="hangar-card rocket-panel">
         <div class="rocket-icon">🚀</div>
         <h2>Pioneer Class</h2>
-        <p class="muted">Landing module · 6 colonists</p>
-        <div class="cost-tag">Cost: <strong>FREE</strong> <span class="muted">(beta)</span></div>
+        <p class="muted">Claim your first moon</p>
+        <div class="cost-tag">Cost: <strong>FREE</strong> (beta)</div>
         <button id="btn-launch" class="btn btn-primary" disabled>Select a free moon</button>
       </div>
       <div class="hangar-card moons-panel">
         <h2>Earth Orbit — Moons</h2>
         <div id="moon-list" class="moon-list"></div>
-        <p class="hint">Limited moons. First claim wins.</p>
       </div>
     </div>
   </div>
 
-  <!-- GAME -->
+  <!-- MAIN GAME -->
   <div id="screen-game" class="screen">
     <header class="topbar">
       <div class="topbar-left">
@@ -88,80 +72,77 @@
       </div>
       <div class="resource-bar" id="resource-bar"></div>
       <div class="topbar-actions">
-        <button id="btn-pause" class="icon-btn">⏸</button>
-        <button id="btn-speed" class="icon-btn">▶</button>
-        <button id="btn-build-toggle" class="icon-btn">🔧</button>
-        <button id="btn-map" class="icon-btn">🗺</button>
+        <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
+        <button id="btn-speed" class="icon-btn" title="Speed">▶</button>
+        <button id="btn-map" class="icon-btn" title="Map">🗺</button>
       </div>
     </header>
 
-    <div class="colony-view" id="colony-view">
-      <div class="colony-sky">
-        <div class="sky-stars"></div>
-        <div class="planet-earth"></div>
-      </div>
+    <!-- Nav tabs -->
+    <nav class="game-nav">
+      <button class="nav-btn active" data-tab="overview">Overview</button>
+      <button class="nav-btn" data-tab="buildings">Buildings</button>
+      <button class="nav-btn" data-tab="surface">Surface</button>
+      <button class="nav-btn" data-tab="shipyard">Shipyard</button>
+    </nav>
 
-      <div class="colony-ground" id="colony-ground">
-        <div class="ground-texture"></div>
-        <div class="crater c1"></div>
-        <div class="crater c2"></div>
-        <div class="crater c3"></div>
-
-        <!-- Visible grid slots ON the surface -->
-        <div id="slots-layer" class="slots-layer"></div>
-
-        <!-- Buildings + dome -->
-        <div id="buildings-layer" class="buildings-layer"></div>
-
-        <!-- Transparent dome overlay -->
-        <div id="dome-visual" class="dome-visual hidden"></div>
+    <!-- OVERVIEW TAB -->
+    <div id="tab-overview" class="tab-panel active">
+      <div class="overview-grid">
+        <div class="card">
+          <h3>Production / hour</h3>
+          <div id="prod-list" class="prod-list"></div>
+          <div class="energy-line">Energy: <span id="energy-balance">0 / 0</span></div>
+        </div>
+        <div class="card">
+          <h3>Construction Queue</h3>
+          <div id="queue-box" class="queue-box">
+            <p class="muted">Nothing in construction</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Colony Status</h3>
+          <div id="status-box"></div>
+        </div>
+        <div class="card">
+          <h3>Faction Bonus</h3>
+          <div id="faction-info"></div>
+        </div>
       </div>
     </div>
 
-    <div id="build-panel" class="float-panel">
-      <div class="float-header">
-        <span>CONSTRUCT</span>
-        <button id="btn-close-build" class="close-btn">✕</button>
-      </div>
-      <div class="tabs" id="build-cats">
-        <button class="tab active" data-cat="life">Life</button>
-        <button class="tab" data-cat="energy">Power</button>
-        <button class="tab" data-cat="extract">Extract</button>
-        <button class="tab" data-cat="infra">Infra</button>
-      </div>
-      <div class="build-list" id="build-list"></div>
+    <!-- BUILDINGS TAB -->
+    <div id="tab-buildings" class="tab-panel">
+      <div id="buildings-list" class="buildings-list"></div>
     </div>
 
-    <div class="float-panel status-panel">
-      <div class="float-header"><span>STATUS</span></div>
-      <div id="base-status" class="status-box"></div>
-      <div class="pop-line">Population <strong id="pop-count">6 / 6</strong></div>
-      <div class="meters">
-        <div class="meter">
-          <span class="meter-label">O₂</span>
-          <div class="meter-track"><div id="oxy-fill" class="meter-fill oxy"></div></div>
-          <span id="oxy-val" class="meter-val">100%</span>
-        </div>
-        <div class="meter">
-          <span class="meter-label">Food</span>
-          <div class="meter-track"><div id="food-fill" class="meter-fill food"></div></div>
-          <span id="food-val" class="meter-val">100%</span>
-        </div>
-        <div class="meter">
-          <span class="meter-label">Morale</span>
-          <div class="meter-track"><div id="moral-fill" class="meter-fill moral"></div></div>
-          <span id="moral-val" class="meter-val">75%</span>
+    <!-- SURFACE TAB (2D view) -->
+    <div id="tab-surface" class="tab-panel">
+      <div class="colony-view">
+        <div class="colony-sky"><div class="sky-stars"></div><div class="planet-earth"></div></div>
+        <div class="colony-ground">
+          <div class="surface-mesh"></div>
+          <div id="dome-visual" class="dome-visual hidden"></div>
+          <div id="surface-buildings" class="surface-buildings"></div>
         </div>
       </div>
-      <div id="log" class="log"></div>
+    </div>
+
+    <!-- SHIPYARD TAB (placeholder) -->
+    <div id="tab-shipyard" class="tab-panel">
+      <div class="card" style="margin:16px;max-width:500px">
+        <h3>Shipyard</h3>
+        <p class="muted">Requires Shipyard level 1. Fleet combat coming in next version.</p>
+        <p>Prepare hangars and defenses for PvP.</p>
+      </div>
     </div>
 
     <footer class="bottombar">
-      <div class="objective"><strong>Objective:</strong> <span id="objective">Build Dome + Oxygen + Habitat</span></div>
-      <div id="alert-box" class="alert hidden"></div>
+      <div class="objective"><strong>Tip:</strong> <span id="objective">Upgrade mines and keep energy positive</span></div>
     </footer>
   </div>
 
+  <!-- MAP -->
   <div id="screen-map" class="screen">
     <div class="bg-space"><div class="stars"></div></div>
     <header class="topbar">
