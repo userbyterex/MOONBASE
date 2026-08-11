@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#05080f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>MOONBASE — LUNA</title>
+  <meta name="description" content="Build your lunar base, mine resources, choose a faction and dominate planets." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- TITLE + FACTION -->
+  <div id="screen-title" class="screen active">
+    <div class="bg-space">
+      <div class="stars"></div>
+      <div class="nebula"></div>
+    </div>
+    <div class="title-content">
+      <div class="logo-block">
+        <div class="moon-glow">☽</div>
+        <h1>MOONBASE</h1>
+        <p class="tagline">LUNA PROTOCOL</p>
+      </div>
+      <p class="pitch">You are on Earth. Choose your faction, launch your rocket and claim a moon.<br>Build, mine, grow — become Planetary Governor.</p>
+
+      <div id="faction-select" class="faction-grid"></div>
+
+      <div class="title-actions">
+        <button id="btn-start" class="btn btn-primary" disabled>
+          <span>Launch Colony</span>
+        </button>
+        <button id="btn-continue" class="btn btn-ghost hidden">Continue</button>
+      </div>
+      <p class="version">Beta 1.0 · Token burns disabled</p>
+    </div>
+  </div>
+
+  <!-- HANGAR -->
+  <div id="screen-hangar" class="screen">
+    <div class="bg-space"><div class="stars"></div></div>
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title">Earth Hangar</span>
+        <span id="player-faction-badge" class="badge"></span>
+      </div>
+      <button id="btn-back-title" class="btn btn-ghost btn-sm">← Back</button>
+    </header>
+
+    <div class="hangar-layout">
+      <div class="hangar-card rocket-panel">
+        <div class="rocket-icon">🚀</div>
+        <h2>Pioneer Class</h2>
+        <p class="muted">Landing module · 6 initial colonists</p>
+        <div class="cost-tag">Cost: <strong>FREE</strong> <span class="muted">(beta)</span></div>
+        <button id="btn-launch" class="btn btn-primary" disabled>Select a free moon</button>
+      </div>
+
+      <div class="hangar-card moons-panel">
+        <h2>Earth Orbit — Available Moons</h2>
+        <div id="moon-list" class="moon-list"></div>
+        <p class="hint">Moons are limited. First claim wins.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME BASE -->
+  <div id="screen-game" class="screen">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span id="base-name" class="topbar-title">Base</span>
+        <span class="day-chip">Day <span id="day">1</span></span>
+        <span id="planet-badge" class="badge badge-planet">Earth</span>
+      </div>
+      <div class="resource-bar" id="resource-bar"></div>
+      <div class="topbar-actions">
+        <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
+        <button id="btn-speed" class="icon-btn" title="Speed">▶</button>
+        <button id="btn-map" class="icon-btn" title="System Map">🗺</button>
+      </div>
+    </header>
+
+    <div class="main-layout">
+      <aside class="sidebar left">
+        <h3 class="sidebar-title">Construct</h3>
+        <div class="tabs" id="build-cats">
+          <button class="tab active" data-cat="life">Life</button>
+          <button class="tab" data-cat="energy">Power</button>
+          <button class="tab" data-cat="extract">Extract</button>
+          <button class="tab" data-cat="infra">Infra</button>
+        </div>
+        <div class="build-list" id="build-list"></div>
+      </aside>
+
+      <main class="base-view">
+        <div id="base-grid" class="base-grid"></div>
+      </main>
+
+      <aside class="sidebar right">
+        <h3 class="sidebar-title">Base Status</h3>
+        <div id="base-status" class="status-box"></div>
+
+        <h3 class="sidebar-title">Population <span id="pop-count">6</span></h3>
+        <div class="meters">
+          <div class="meter">
+            <span class="meter-label">Oxygen</span>
+            <div class="meter-track"><div id="oxy-fill" class="meter-fill oxy"></div></div>
+            <span id="oxy-val" class="meter-val">100%</span>
+          </div>
+          <div class="meter">
+            <span class="meter-label">Food</span>
+            <div class="meter-track"><div id="food-fill" class="meter-fill food"></div></div>
+            <span id="food-val" class="meter-val">100%</span>
+          </div>
+          <div class="meter">
+            <span class="meter-label">Morale</span>
+            <div class="meter-track"><div id="moral-fill" class="meter-fill moral"></div></div>
+            <span id="moral-val" class="meter-val">75%</span>
+          </div>
+        </div>
+
+        <h3 class="sidebar-title">Log</h3>
+        <div id="log" class="log"></div>
+      </aside>
+    </div>
+
+    <footer class="bottombar">
+      <div class="objective"><strong>Objective:</strong> <span id="objective">Build Dome + Oxygen + Habitat</span></div>
+      <div id="alert-box" class="alert hidden"></div>
+    </footer>
+  </div>
+
+  <!-- SYSTEM MAP -->
+  <div id="screen-map" class="screen">
+    <div class="bg-space"><div class="stars"></div></div>
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title">Solar System Map</span>
+      </div>
+      <button id="btn-back-game" class="btn btn-ghost btn-sm">← Base</button>
+    </header>
+    <div class="planet-map" id="planet-map"></div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
