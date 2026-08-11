@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#05080f" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>MOONBASE — LUNA</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,13 +20,13 @@
         <h1>MOONBASE</h1>
         <p class="tagline">LUNA PROTOCOL</p>
       </div>
-      <p class="pitch">Choose your faction. Launch. Claim a moon.<br>Build humanity’s future on the surface.</p>
+      <p class="pitch">Choose your faction. Launch. Claim a moon.<br>Build on the surface of another world.</p>
       <div id="faction-select" class="faction-grid"></div>
       <div class="title-actions">
         <button id="btn-start" class="btn btn-primary" disabled><span>Select Faction</span></button>
         <button id="btn-continue" class="btn btn-ghost hidden">Continue Mission</button>
       </div>
-      <p class="version">Beta 1.2 · Moon Surface View</p>
+      <p class="version">Beta 1.3 · True 2D Moon Base</p>
     </div>
   </div>
 
@@ -79,7 +78,7 @@
     </div>
   </div>
 
-  <!-- GAME — MOON SURFACE -->
+  <!-- GAME — 2D MOON BASE -->
   <div id="screen-game" class="screen">
     <header class="topbar">
       <div class="topbar-left">
@@ -89,27 +88,40 @@
       </div>
       <div class="resource-bar" id="resource-bar"></div>
       <div class="topbar-actions">
-        <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
-        <button id="btn-speed" class="icon-btn" title="Speed">▶</button>
-        <button id="btn-build-toggle" class="icon-btn" title="Build Menu">🔧</button>
-        <button id="btn-map" class="icon-btn" title="System Map">🗺</button>
+        <button id="btn-pause" class="icon-btn">⏸</button>
+        <button id="btn-speed" class="icon-btn">▶</button>
+        <button id="btn-build-toggle" class="icon-btn">🔧</button>
+        <button id="btn-map" class="icon-btn">🗺</button>
       </div>
     </header>
 
-    <!-- Moon surface scene -->
-    <div class="moon-scene">
-      <div class="moon-sky">
-        <div class="moon-stars"></div>
-        <div class="earth-ball"></div>
+    <!-- 2D Moon Base Scene -->
+    <div class="colony-view">
+      <!-- Sky layer -->
+      <div class="colony-sky">
+        <div class="sky-stars"></div>
+        <div class="planet-earth"></div>
+        <div class="planet-label">EARTH</div>
       </div>
-      <div class="moon-surface">
-        <div class="craters"></div>
-        <div id="base-grid" class="base-grid"></div>
+
+      <!-- Horizon / surface -->
+      <div class="colony-ground">
+        <div class="ground-texture"></div>
+        <div class="crater c1"></div>
+        <div class="crater c2"></div>
+        <div class="crater c3"></div>
+        <div class="crater c4"></div>
+
+        <!-- Buildings sit on the surface -->
+        <div id="buildings-layer" class="buildings-layer"></div>
+
+        <!-- Placement slots (invisible grid for clicking) -->
+        <div id="slots-layer" class="slots-layer"></div>
       </div>
     </div>
 
     <!-- Floating Build Panel -->
-    <div id="build-panel" class="float-panel hidden">
+    <div id="build-panel" class="float-panel">
       <div class="float-header">
         <span>CONSTRUCT</span>
         <button id="btn-close-build" class="close-btn">✕</button>
@@ -123,11 +135,11 @@
       <div class="build-list" id="build-list"></div>
     </div>
 
-    <!-- Floating Status Panel -->
+    <!-- Floating Status -->
     <div class="float-panel status-panel">
-      <div class="float-header"><span>BASE STATUS</span></div>
+      <div class="float-header"><span>STATUS</span></div>
       <div id="base-status" class="status-box"></div>
-      <div class="pop-line">Population <strong id="pop-count">6</strong></div>
+      <div class="pop-line">Population <strong id="pop-count">6 / 6</strong></div>
       <div class="meters">
         <div class="meter">
           <span class="meter-label">O₂</span>
