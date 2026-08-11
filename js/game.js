@@ -21,23 +21,13 @@ const Game = {
 
   createNewGame(factionId) {
     const faction = FACTIONS.find(f => f.id === factionId);
-    const moons = generateEarthMoons();
-
     this.state = {
-      version: '1.0',
+      version: '1.1',
       playerId: 'player_' + Date.now(),
       faction: faction,
       day: 1,
       tick: 0,
-      resources: {
-        regolith: 80,
-        ice: 40,
-        metal: 25,
-        rare: 0,
-        energy: 20,
-        oxygen: 100,
-        food: 80
-      },
+      resources: { regolith: 80, ice: 40, metal: 25, rare: 0, energy: 20, oxygen: 100, food: 80 },
       storageCap: 200,
       population: 6,
       popCap: 6,
@@ -45,13 +35,12 @@ const Game = {
       buildings: [],
       grid: Array(6).fill(null).map(() => Array(8).fill(null)),
       currentMoon: null,
-      moons: moons,
+      moons: generateEarthMoons(),
       governors: { earth: null, mars: null, jupiter: null },
       log: []
     };
-
     this.save();
-    this.log('New colony founded. Faction: ' + faction.name);
+    this.log('Colony founded under ' + faction.name);
   },
 
   save() {
@@ -62,15 +51,12 @@ const Game = {
   claimMoon(moonId) {
     const moon = this.state.moons.find(m => m.id === moonId);
     if (!moon || moon.owner) return false;
-
     moon.owner = this.state.playerId;
     moon.claimedAt = Date.now();
     this.state.currentMoon = moon;
-
     this.placeBuilding('dome', 3, 2, true);
     this.state.population = 6;
     this.state.popCap = 6;
-
     this.updateGovernor('earth');
     this.log(`Moon claimed: ${moon.name}`);
     this.save();
@@ -83,14 +69,9 @@ const Game = {
     planetMoons.forEach(m => {
       if (m.owner) counts[m.owner] = (counts[m.owner] || 0) + 1;
     });
-
-    let max = 0;
-    let winner = null;
+    let max = 0, winner = null;
     for (const [owner, count] of Object.entries(counts)) {
-      if (count > max) {
-        max = count;
-        winner = owner;
-      }
+      if (count > max) { max = count; winner = owner; }
     }
     this.state.governors[planetId] = (max > planetMoons.length / 2) ? winner : null;
   },
@@ -115,22 +96,16 @@ const Game = {
       if (def) break;
     }
     if (!def) return false;
-
-    const existing = this.state.buildings.filter(b => b.id === buildingId).length;
-    if (existing >= def.max) return false;
+    if (this.state.buildings.filter(b => b.id === buildingId).length >= def.max) return false;
     if (this.state.grid[y][x] !== null) return false;
-
     if (!free) {
       if (!this.canAfford(def.cost)) return false;
       this.pay(def.cost);
     }
-
     this.state.grid[y][x] = buildingId;
     this.state.buildings.push({ id: buildingId, x, y, level: 1 });
-
     if (def.effect.popCap) this.state.popCap += def.effect.popCap;
     if (def.effect.storage) this.state.storageCap += def.effect.storage;
-
     this.log(`Built: ${def.name}`);
     this.save();
     return true;
@@ -145,18 +120,13 @@ const Game = {
   },
 
   stopLoop() {
-    if (this.tickInterval) {
-      clearInterval(this.tickInterval);
-      this.tickInterval = null;
-    }
+    if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null; }
   },
 
   tick() {
     if (!this.state || !this.state.currentMoon) return;
-
     const mods = this.state.faction.modifiers;
-    let oxyProd = 0, foodProd = 0, energyProd = 0;
-    let regProd = 0, iceProd = 0, metalProd = 0;
+    let oxyProd = 0, foodProd = 0, energyProd = 0, regProd = 0, iceProd = 0, metalProd = 0;
 
     this.state.buildings.forEach(b => {
       let def = null;
@@ -165,7 +135,6 @@ const Game = {
         if (def) break;
       }
       if (!def || !def.effect) return;
-
       if (def.effect.oxygen) oxyProd += def.effect.oxygen * mods.oxygen;
       if (def.effect.food) foodProd += def.effect.food * mods.food;
       if (def.effect.energy) energyProd += def.effect.energy * mods.energy;
@@ -175,18 +144,10 @@ const Game = {
     });
 
     const add = (key, amount) => {
-      this.state.resources[key] = Math.min(
-        this.state.storageCap,
-        (this.state.resources[key] || 0) + amount
-      );
+      this.state.resources[key] = Math.min(this.state.storageCap, (this.state.resources[key] || 0) + amount);
     };
-
-    add('oxygen', oxyProd);
-    add('food', foodProd);
-    add('energy', energyProd);
-    add('regolith', regProd);
-    add('ice', iceProd);
-    add('metal', metalProd);
+    add('oxygen', oxyProd); add('food', foodProd); add('energy', energyProd);
+    add('regolith', regProd); add('ice', iceProd); add('metal', metalProd);
 
     const pop = this.state.population;
     this.state.resources.oxygen = Math.max(0, this.state.resources.oxygen - pop * 0.8);
@@ -197,13 +158,12 @@ const Game = {
     if (this.state.resources.oxygen < pop * 2) moralChange -= 3;
     if (this.state.resources.food < pop * 1.5) moralChange -= 2;
     if (this.state.resources.oxygen > 50 && this.state.resources.food > 40) moralChange += 1;
-
     this.state.moral = Math.max(0, Math.min(100, this.state.moral + moralChange));
 
     if (this.state.resources.oxygen <= 0 || this.state.resources.food <= 0) {
       if (this.state.population > 0) {
         this.state.population = Math.max(0, this.state.population - 1);
-        this.log('⚠ A colonist has died from lack of resources');
+        this.log('⚠ Colonist died from resource shortage');
       }
     } else if (this.state.moral > 60 && this.state.population < this.state.popCap && Math.random() < 0.15 * mods.popGrowth) {
       this.state.population++;
@@ -214,11 +174,10 @@ const Game = {
     if (this.state.tick % 5 === 0) this.state.day++;
 
     if (this.state.population <= 0) {
-      this.log('💀 Colony lost. All colonists have died.');
+      this.log('💀 Colony lost. All colonists dead.');
       this.speed = 0;
       this.stopLoop();
     }
-
     this.save();
     UI.updateAll();
   },

@@ -27,8 +27,13 @@ const UI = {
     FACTIONS.forEach(f => {
       const card = document.createElement('div');
       card.className = 'faction-card';
-      card.dataset.id = f.id;
+      card.style.setProperty('--faction-color', f.color);
+      card.style.setProperty('--faction-bg', f.bg);
       card.innerHTML = `
+        <div class="faction-avatar">
+          ${f.avatar}
+          <span class="role">${f.role}</span>
+        </div>
         <h4 style="color:${f.color}">${f.name}</h4>
         <p>${f.desc}</p>
         <div class="bonus">${f.bonus}</div>
@@ -37,10 +42,51 @@ const UI = {
         document.querySelectorAll('.faction-card').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
         document.getElementById('btn-start').disabled = false;
+        document.getElementById('btn-start').querySelector('span').textContent = 'Launch Colony';
         this.selectedFaction = f.id;
       });
       container.appendChild(card);
     });
+  },
+
+  // ===== ROCKET LAUNCH SEQUENCE =====
+  playLaunchAnimation(onComplete) {
+    this.showScreen('screen-launch');
+    const rocket = document.getElementById('rocket');
+    const progress = document.getElementById('launch-progress');
+    const text = document.getElementById('launch-text');
+    const status = document.getElementById('launch-status');
+
+    rocket.classList.remove('ignite', 'liftoff');
+    progress.style.width = '0%';
+    text.textContent = 'IGNITION SEQUENCE';
+    status.textContent = 'T-10';
+
+    let t = 10;
+    const countdown = setInterval(() => {
+      t--;
+      status.textContent = 'T-' + t;
+      progress.style.width = ((10 - t) * 10) + '%';
+
+      if (t === 6) {
+        text.textContent = 'ENGINES ONLINE';
+        rocket.classList.add('ignite');
+      }
+      if (t === 3) text.textContent = 'MAIN ENGINE START';
+      if (t === 1) text.textContent = 'LIFTOFF';
+
+      if (t <= 0) {
+        clearInterval(countdown);
+        status.textContent = 'LIFTOFF';
+        progress.style.width = '100%';
+        rocket.classList.add('liftoff');
+        text.textContent = 'TRANSIT TO ORBIT';
+
+        setTimeout(() => {
+          onComplete();
+        }, 3200);
+      }
+    }, 420);
   },
 
   renderMoons() {
@@ -51,8 +97,6 @@ const UI = {
     earthMoons.forEach(m => {
       const card = document.createElement('div');
       card.className = 'moon-card' + (m.owner ? ' claimed' : '');
-      card.dataset.id = m.id;
-
       let status;
       if (m.owner === Game.state.playerId) status = '<span class="status free">Yours</span>';
       else if (m.owner) status = '<span class="status taken">Taken</span>';
@@ -84,7 +128,6 @@ const UI = {
     const list = document.getElementById('build-list');
     list.innerHTML = '';
     const cats = BUILDINGS[this.currentCategory] || [];
-
     cats.forEach(b => {
       const count = Game.countBuilding(b.id);
       const canBuild = count < b.max && Game.canAfford(b.cost);
@@ -97,7 +140,7 @@ const UI = {
       if (canBuild) {
         item.addEventListener('click', () => {
           Game.selectedBuilding = b.id;
-          this.showAlert(`Selected: ${b.name}. Tap an empty cell.`);
+          this.showAlert(`Selected: ${b.name}. Tap empty cell.`);
         });
       }
       list.appendChild(item);
@@ -105,9 +148,7 @@ const UI = {
   },
 
   formatCost(cost) {
-    return Object.entries(cost)
-      .map(([k, v]) => `${RESOURCE_ICONS[k] || k} ${v}`)
-      .join('  ');
+    return Object.entries(cost).map(([k, v]) => `${RESOURCE_ICONS[k] || k} ${v}`).join('  ');
   },
 
   renderGrid() {
@@ -117,20 +158,15 @@ const UI = {
       for (let x = 0; x < 8; x++) {
         const cell = document.createElement('div');
         cell.className = 'cell';
-        cell.dataset.x = x;
-        cell.dataset.y = y;
-
         const buildingId = Game.state.grid[y][x];
         if (buildingId) {
           cell.classList.add('occupied');
           const def = Game.getBuildingDef(buildingId);
           cell.textContent = def ? def.icon : '?';
         }
-
         cell.addEventListener('click', () => {
           if (Game.selectedBuilding && !buildingId) {
-            const ok = Game.placeBuilding(Game.selectedBuilding, x, y);
-            if (ok) {
+            if (Game.placeBuilding(Game.selectedBuilding, x, y)) {
               Game.selectedBuilding = null;
               this.renderGrid();
               this.renderBuildMenu();
@@ -145,9 +181,8 @@ const UI = {
   },
 
   updateResources() {
-    const bar = document.getElementById('resource-bar');
     const r = Game.state.resources;
-    bar.innerHTML = `
+    document.getElementById('resource-bar').innerHTML = `
       <div class="res-item">${RESOURCE_ICONS.regolith} <span class="val">${Math.floor(r.regolith)}</span></div>
       <div class="res-item">${RESOURCE_ICONS.ice} <span class="val">${Math.floor(r.ice)}</span></div>
       <div class="res-item">${RESOURCE_ICONS.metal} <span class="val">${Math.floor(r.metal)}</span></div>
@@ -164,7 +199,6 @@ const UI = {
 
     const oxyPct = Math.min(100, (s.resources.oxygen / (s.population * 5 + 20)) * 100);
     const foodPct = Math.min(100, (s.resources.food / (s.population * 4 + 20)) * 100);
-
     document.getElementById('oxy-fill').style.width = oxyPct + '%';
     document.getElementById('oxy-val').textContent = Math.floor(oxyPct) + '%';
     document.getElementById('food-fill').style.width = foodPct + '%';
@@ -175,7 +209,6 @@ const UI = {
     const hasDome = Game.countBuilding('dome') > 0;
     const hasOxy = Game.countBuilding('oxygen') > 0;
     const hasHab = Game.countBuilding('habitat') > 0;
-
     document.getElementById('base-status').innerHTML = `
       <div>Dome: ${hasDome ? '✅' : '❌'}</div>
       <div>Oxygen: ${hasOxy ? '✅' : '❌'}</div>
@@ -189,8 +222,7 @@ const UI = {
     else if (!hasHab) obj = 'Build a Habitat';
     document.getElementById('objective').textContent = obj;
 
-    document.getElementById('log').innerHTML = s.log.slice(0, 12)
-      .map(l => `<div>${l}</div>`).join('');
+    document.getElementById('log').innerHTML = s.log.slice(0, 12).map(l => `<div>${l}</div>`).join('');
   },
 
   updateAll() {
@@ -202,34 +234,25 @@ const UI = {
   renderPlanetMap() {
     const container = document.getElementById('planet-map');
     container.innerHTML = '';
-
     PLANETS.forEach(p => {
       const card = document.createElement('div');
       card.className = 'planet-card';
-
       const planetMoons = Game.state.moons.filter(m => m.planet === p.id);
       const gov = Game.state.governors[p.id];
       let govText = 'No Governor (need majority)';
       if (gov === Game.state.playerId) govText = 'You are the Governor';
       else if (gov) govText = 'Enemy Governor';
 
-      let moonsHtml = '';
-      if (planetMoons.length === 0) {
-        moonsHtml = '<span style="color:var(--muted);font-size:0.8rem">Locked in Beta 1</span>';
-      } else {
-        planetMoons.forEach(m => {
-          let cls = 'moon-dot';
-          if (m.owner === Game.state.playerId) cls += ' owned';
-          else if (m.owner) cls += ' enemy';
-          moonsHtml += `<div class="${cls}" title="${m.name}">${m.owner ? '●' : '○'}</div>`;
-        });
-      }
+      let moonsHtml = planetMoons.length === 0
+        ? '<span style="color:var(--muted);font-size:0.78rem">Locked in Beta 1</span>'
+        : planetMoons.map(m => {
+            let cls = 'moon-dot';
+            if (m.owner === Game.state.playerId) cls += ' owned';
+            else if (m.owner) cls += ' enemy';
+            return `<div class="${cls}" title="${m.name}">${m.owner ? '●' : '○'}</div>`;
+          }).join('');
 
-      card.innerHTML = `
-        <h3>${p.name}</h3>
-        <div class="gov">${govText}</div>
-        <div class="moon-mini">${moonsHtml}</div>
-      `;
+      card.innerHTML = `<h3>${p.name}</h3><div class="gov">${govText}</div><div class="moon-mini">${moonsHtml}</div>`;
       container.appendChild(card);
     });
   },
@@ -238,7 +261,7 @@ const UI = {
     const box = document.getElementById('alert-box');
     box.textContent = msg;
     box.classList.remove('hidden');
-    setTimeout(() => box.classList.add('hidden'), 2800);
+    setTimeout(() => box.classList.add('hidden'), 2600);
   },
 
   bindEvents() {
@@ -260,13 +283,16 @@ const UI = {
       }
     });
 
-    document.getElementById('btn-back-title').addEventListener('click', () => {
-      this.showScreen('screen-title');
-    });
+    document.getElementById('btn-back-title').addEventListener('click', () => this.showScreen('screen-title'));
 
     document.getElementById('btn-launch').addEventListener('click', () => {
       if (!Game.selectedMoonId) return;
-      if (Game.claimMoon(Game.selectedMoonId)) this.enterBase();
+      // Play launch animation then claim
+      this.playLaunchAnimation(() => {
+        if (Game.claimMoon(Game.selectedMoonId)) {
+          this.enterBase();
+        }
+      });
     });
 
     document.querySelectorAll('.tab').forEach(btn => {
@@ -293,9 +319,7 @@ const UI = {
       this.showScreen('screen-map');
     });
 
-    document.getElementById('btn-back-game').addEventListener('click', () => {
-      this.showScreen('screen-game');
-    });
+    document.getElementById('btn-back-game').addEventListener('click', () => this.showScreen('screen-game'));
   },
 
   enterBase() {
