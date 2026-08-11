@@ -43,23 +43,23 @@ const FACTIONS = [
 
 const BUILDINGS = {
   life: [
-    { id: 'dome', name: 'Dome', icon: '🛡️', short: 'Dome', desc: 'Pressure & radiation shield', cost: { regolith: 40, metal: 10 }, max: 1, effect: { unlock: true } },
-    { id: 'oxygen', name: 'O₂ Generator', icon: '💨', short: 'O₂', desc: '+8 oxygen / tick', cost: { regolith: 25, ice: 15 }, max: 6, effect: { oxygen: 8 } },
-    { id: 'hydro', name: 'Hydroponics', icon: '🌱', short: 'Food', desc: '+6 food / tick', cost: { regolith: 20, ice: 20 }, max: 8, effect: { food: 6 } },
-    { id: 'habitat', name: 'Habitat', icon: '🏠', short: 'Hab', desc: '+4 population capacity', cost: { regolith: 30, metal: 15 }, max: 10, effect: { popCap: 4 } }
+    { id: 'dome', name: 'Dome', icon: '🛡️', short: 'Dome', desc: 'Transparent shield. Expands build area.', cost: { regolith: 40, metal: 10 }, max: 3, buildTime: 4, effect: { unlock: true } },
+    { id: 'oxygen', name: 'O₂ Generator', icon: '💨', short: 'O₂', desc: '+8 oxygen / tick', cost: { regolith: 25, ice: 15 }, max: 6, buildTime: 3, effect: { oxygen: 8 } },
+    { id: 'hydro', name: 'Hydroponics', icon: '🌱', short: 'Food', desc: '+6 food / tick', cost: { regolith: 20, ice: 20 }, max: 8, buildTime: 3, effect: { food: 6 } },
+    { id: 'habitat', name: 'Habitat', icon: '🏠', short: 'Hab', desc: '+4 population capacity', cost: { regolith: 30, metal: 15 }, max: 10, buildTime: 4, effect: { popCap: 4 } }
   ],
   energy: [
-    { id: 'solar', name: 'Solar Array', icon: '☀️', short: 'Solar', desc: '+5 energy / tick', cost: { regolith: 15, metal: 10 }, max: 12, effect: { energy: 5 } },
-    { id: 'reactor', name: 'Reactor', icon: '⚛️', short: 'Reactor', desc: '+18 energy / tick', cost: { metal: 40, rare: 8 }, max: 4, effect: { energy: 18 } }
+    { id: 'solar', name: 'Solar Array', icon: '☀️', short: 'Solar', desc: '+5 energy / tick', cost: { regolith: 15, metal: 10 }, max: 12, buildTime: 2, effect: { energy: 5 } },
+    { id: 'reactor', name: 'Reactor', icon: '⚛️', short: 'Reactor', desc: '+18 energy / tick', cost: { metal: 40, rare: 8 }, max: 4, buildTime: 6, effect: { energy: 18 } }
   ],
   extract: [
-    { id: 'mine', name: 'Regolith Mine', icon: '⛏️', short: 'Mine', desc: '+4 regolith / tick', cost: { regolith: 10 }, max: 10, effect: { regolith: 4 } },
-    { id: 'ice_drill', name: 'Ice Drill', icon: '🧊', short: 'Ice', desc: '+3 ice / tick', cost: { metal: 20, regolith: 15 }, max: 8, effect: { ice: 3 } },
-    { id: 'metal_extractor', name: 'Metal Extractor', icon: '🔩', short: 'Metal', desc: '+2 metal / tick', cost: { regolith: 25, metal: 10 }, max: 6, effect: { metal: 2 } }
+    { id: 'mine', name: 'Regolith Mine', icon: '⛏️', short: 'Mine', desc: '+4 regolith / tick', cost: { regolith: 10 }, max: 10, buildTime: 2, effect: { regolith: 4 } },
+    { id: 'ice_drill', name: 'Ice Drill', icon: '🧊', short: 'Ice', desc: '+3 ice / tick', cost: { metal: 20, regolith: 15 }, max: 8, buildTime: 3, effect: { ice: 3 } },
+    { id: 'metal_extractor', name: 'Metal Extractor', icon: '🔩', short: 'Metal', desc: '+2 metal / tick', cost: { regolith: 25, metal: 10 }, max: 6, buildTime: 3, effect: { metal: 2 } }
   ],
   infra: [
-    { id: 'storage', name: 'Storage Hub', icon: '📦', short: 'Store', desc: '+50 storage capacity', cost: { regolith: 20, metal: 5 }, max: 5, effect: { storage: 50 } },
-    { id: 'hangar', name: 'Hangar', icon: '🛸', short: 'Hangar', desc: 'Ready for ships next version', cost: { metal: 60, rare: 15 }, max: 1, effect: { hangar: true } }
+    { id: 'storage', name: 'Storage Hub', icon: '📦', short: 'Store', desc: '+50 storage capacity', cost: { regolith: 20, metal: 5 }, max: 5, buildTime: 2, effect: { storage: 50 } },
+    { id: 'hangar', name: 'Hangar', icon: '🛸', short: 'Hangar', desc: 'Ready for ships next version', cost: { metal: 60, rare: 15 }, max: 1, buildTime: 8, effect: { hangar: true } }
   ]
 };
 
@@ -87,6 +87,13 @@ const RESOURCE_ICONS = {
   regolith: '🪨', ice: '🧊', metal: '⚙️', rare: '💎', energy: '⚡', oxygen: '💨', food: '🥗'
 };
 
-// Grid size for placement (6 cols x 4 rows on the surface)
 const GRID_COLS = 6;
 const GRID_ROWS = 4;
+
+// How many slots unlocked by dome level
+function slotsUnlocked(domeLevel) {
+  if (domeLevel <= 0) return 4;   // starting few
+  if (domeLevel === 1) return 10;
+  if (domeLevel === 2) return 18;
+  return GRID_COLS * GRID_ROWS; // 24
+}

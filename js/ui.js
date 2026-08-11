@@ -1,10 +1,15 @@
 const UI = {
   currentCategory: 'life',
   selectedFaction: null,
+  panX: 0,
+  panY: 0,
+  isPanning: false,
+  panStart: null,
 
   init() {
     this.renderFactions();
     this.bindEvents();
+    this.setupPan();
     if (Game.state?.currentMoon) document.getElementById('btn-continue').classList.remove('hidden');
   },
 
@@ -99,12 +104,12 @@ const UI = {
       const can = count < b.max && Game.canAfford(b.cost);
       const item = document.createElement('div');
       item.className = 'build-item' + (can ? '' : ' disabled');
-      item.innerHTML = `<h4>${b.icon} ${b.name} (${count}/${b.max})</h4><div class="cost">${this.formatCost(b.cost)} — ${b.desc}</div>`;
+      item.innerHTML = `<h4>${b.icon} ${b.name} (${count}/${b.max})</h4>
+        <div class="cost">${this.formatCost(b.cost)} — ${b.desc}</div>`;
       if (can) item.onclick = () => {
         Game.selectedBuilding = b.id;
-        this.showAlert(`Selected: ${b.name}. Tap a free spot on the surface.`);
-        // highlight empty slots
-        document.querySelectorAll('.slot:not(.occupied)').forEach(s => s.classList.add('highlight'));
+        this.showAlert(`Selected: ${b.name}. Tap a free unlocked slot.`);
+        document.querySelectorAll('.slot:not(.occupied):not(.locked)').forEach(s => s.classList.add('highlight'));
       };
       list.appendChild(item);
     });
@@ -114,28 +119,39 @@ const UI = {
     return Object.entries(cost).map(([k, v]) => `${RESOURCE_ICONS[k] || k} ${v}`).join('  ');
   },
 
-  // Render buildings as 2D sprites on the moon surface
   renderColony() {
     const layer = document.getElementById('buildings-layer');
     const slots = document.getElementById('slots-layer');
+    const domeEl = document.getElementById('dome-visual');
     layer.innerHTML = '';
     slots.innerHTML = '';
 
-    // Create clickable slots
+    const domeLevel = Game.getDomeLevel();
+    const unlocked = slotsUnlocked(domeLevel);
+
+    // Dome visual
+    if (domeLevel > 0) {
+      domeEl.classList.remove('hidden', 'level-1', 'level-2', 'level-3');
+      domeEl.classList.add('level-' + Math.min(domeLevel, 3));
+    } else {
+      domeEl.classList.add('hidden');
+    }
+
+    // Slots
     for (let y = 0; y < GRID_ROWS; y++) {
       for (let x = 0; x < GRID_COLS; x++) {
         const slot = document.createElement('div');
         slot.className = 'slot';
         slot.dataset.x = x;
         slot.dataset.y = y;
-
+        const idx = y * GRID_COLS + x;
         const buildingId = Game.state.grid[y][x];
-        if (buildingId) {
-          slot.classList.add('occupied');
-        }
+
+        if (buildingId) slot.classList.add('occupied');
+        else if (idx >= unlocked) slot.classList.add('locked');
 
         slot.onclick = () => {
-          if (Game.selectedBuilding && !buildingId) {
+          if (Game.selectedBuilding && !buildingId && idx < unlocked) {
             if (Game.placeBuilding(Game.selectedBuilding, x, y)) {
               Game.selectedBuilding = null;
               document.querySelectorAll('.slot').forEach(s => s.classList.remove('highlight'));
@@ -150,19 +166,28 @@ const UI = {
       }
     }
 
-    // Place building sprites positioned over their slots
+    // Building sprites
     Game.state.buildings.forEach(b => {
+      if (b.id === 'dome') return; // dome is the big transparent overlay
+
       const def = Game.getBuildingDef(b.id);
       if (!def) return;
 
       const sprite = document.createElement('div');
-      sprite.className = `building-sprite ${b.id}`;
+      sprite.className = 'building-sprite' + (b.complete ? ' complete' : ' constructing');
+      sprite.dataset.key = `${b.x}-${b.y}`;
+
+      let barHtml = '';
+      if (!b.complete) {
+        barHtml = `<div class="build-bar"><div class="build-bar-fill" style="width:${Math.floor(b.progress * 100)}%"></div></div>`;
+      }
+
       sprite.innerHTML = `
         <div class="sprite-icon">${def.icon}</div>
         <div class="sprite-label">${def.short}</div>
+        ${barHtml}
       `;
 
-      // Position based on grid cell (percentage of surface)
       const leftPct = ((b.x + 0.5) / GRID_COLS) * 100;
       const topPct = ((b.y + 0.55) / GRID_ROWS) * 100;
       sprite.style.left = leftPct + '%';
@@ -170,6 +195,14 @@ const UI = {
       sprite.style.transform = 'translate(-50%, -70%)';
 
       layer.appendChild(sprite);
+    });
+  },
+
+  updateConstructionBars() {
+    Game.state.buildings.forEach(b => {
+      if (b.complete) return;
+      const el = document.querySelector(`.building-sprite[data-key="${b.x}-${b.y}"] .build-bar-fill`);
+      if (el) el.style.width = Math.floor(b.progress * 100) + '%';
     });
   },
 
@@ -198,19 +231,21 @@ const UI = {
     document.getElementById('moral-fill').style.width = s.moral + '%';
     document.getElementById('moral-val').textContent = Math.floor(s.moral) + '%';
 
-    const hasDome = Game.countBuilding('dome') > 0;
-    const hasOxy = Game.countBuilding('oxygen') > 0;
-    const hasHab = Game.countBuilding('habitat') > 0;
+    const hasDome = Game.countBuilding('dome', true) > 0;
+    const hasOxy = Game.countBuilding('oxygen', true) > 0;
+    const hasHab = Game.countBuilding('habitat', true) > 0;
+    const domeLvl = Game.getDomeLevel();
     document.getElementById('base-status').innerHTML = `
-      <div>Dome: ${hasDome ? '✅' : '❌'}</div>
+      <div>Dome: ${hasDome ? '✅ L' + domeLvl : '❌'}</div>
       <div>Oxygen: ${hasOxy ? '✅' : '❌'}</div>
       <div>Habitat: ${hasHab ? '✅' : '❌'}</div>
-      <div>Buildings: ${s.buildings.length}</div>`;
+      <div>Buildings: ${s.buildings.filter(b => b.complete).length}</div>`;
 
     let obj = 'Expand and survive';
     if (!hasDome) obj = 'Build a Dome';
     else if (!hasOxy) obj = 'Build an O₂ Generator';
     else if (!hasHab) obj = 'Build a Habitat';
+    else if (domeLvl < 3) obj = 'Upgrade Dome for more space';
     document.getElementById('objective').textContent = obj;
     document.getElementById('log').innerHTML = s.log.slice(0, 6).map(l => `<div>${l}</div>`).join('');
   },
@@ -250,6 +285,35 @@ const UI = {
     box.textContent = msg;
     box.classList.remove('hidden');
     setTimeout(() => box.classList.add('hidden'), 2500);
+  },
+
+  setupPan() {
+    const view = document.getElementById('colony-view');
+    const ground = document.getElementById('colony-ground');
+    if (!view || !ground) return;
+
+    const onStart = (e) => {
+      this.isPanning = true;
+      const pt = e.touches ? e.touches[0] : e;
+      this.panStart = { x: pt.clientX - this.panX, y: pt.clientY - this.panY };
+    };
+    const onMove = (e) => {
+      if (!this.isPanning) return;
+      e.preventDefault();
+      const pt = e.touches ? e.touches[0] : e;
+      this.panX = Math.max(-40, Math.min(40, pt.clientX - this.panStart.x));
+      this.panY = Math.max(-30, Math.min(30, pt.clientY - this.panStart.y));
+      ground.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
+    };
+    const onEnd = () => { this.isPanning = false; };
+
+    view.addEventListener('mousedown', onStart);
+    view.addEventListener('mousemove', onMove);
+    view.addEventListener('mouseup', onEnd);
+    view.addEventListener('mouseleave', onEnd);
+    view.addEventListener('touchstart', onStart, { passive: true });
+    view.addEventListener('touchmove', onMove, { passive: false });
+    view.addEventListener('touchend', onEnd);
   },
 
   bindEvents() {
