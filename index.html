@@ -1,159 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#05080f" />
-  <title>MOONBASE — LUNA</title>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOONBASE — LUNA☽</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
-  <!-- TITLE -->
-  <div id="screen-title" class="screen active">
-    <div class="bg-space"><div class="stars"></div></div>
-    <div class="title-content">
-      <div class="logo-block"><div class="moon-glow">☽</div><h1>MOONBASE</h1><p class="tagline">LUNA PROTOCOL</p></div>
-      <p class="pitch">Build your lunar empire. Upgrade mines. Control planets.<br>Inspired by classic space strategy.</p>
-      <div id="faction-select" class="faction-grid"></div>
-      <div class="title-actions">
-        <button id="btn-start" class="btn btn-primary" disabled><span>Select Faction</span></button>
-        <button id="btn-continue" class="btn btn-ghost hidden">Continue</button>
-      </div>
-      <p class="version">Beta 2.0 · OGame-style Economy</p>
+<div class="bg-space"><div class="stars"></div></div>
+
+<!-- ========== TITLE SCREEN ========== -->
+<div id="screen-title" class="screen active">
+  <div class="title-content">
+    <div class="logo-block">
+      <div class="moon-glow">☽</div>
+      <h1>MOONBASE</h1>
+      <div class="tagline">LUNA PROTOCOL</div>
+    </div>
+    <p class="pitch">Build your lunar empire. Upgrade mines. Research tech. Command fleets. Defend against pirates. Conquer the solar system.</p>
+    <div id="faction-select" class="faction-grid"></div>
+    <div class="title-actions">
+      <button id="btn-start" class="btn btn-primary" disabled><span>Select a faction</span></button>
+      <button id="btn-continue" class="btn btn-ghost hidden">Continue Empire</button>
+    </div>
+    <div class="version">Beta 3.0 · OGame-style Economy · 3D Surface · PvE Combat</div>
+  </div>
+</div>
+
+<!-- ========== HANGAR ========== -->
+<div id="screen-hangar" class="screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title">Hangar</span>
+      <span id="player-faction-badge" class="badge"></span>
+    </div>
+    <button id="btn-back-title" class="btn btn-ghost btn-sm">← Back</button>
+  </div>
+  <div class="hangar-layout">
+    <div class="hangar-card rocket-panel">
+      <div class="rocket-icon">🚀</div>
+      <h3>Colony Ship</h3>
+      <p class="cost-tag">Ready for launch</p>
+    </div>
+    <div class="hangar-card">
+      <h3>Select Moon</h3>
+      <div id="moon-list" class="moon-list"></div>
+      <button id="btn-launch" class="btn btn-primary btn-sm" disabled>Launch to Moon</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== LAUNCH SEQUENCE ========== -->
+<div id="screen-launch" class="screen">
+  <div class="launch-stage">
+    <div class="launch-sky"><div class="launch-stars"></div></div>
+    <div class="pad"></div>
+    <div id="rocket" class="rocket"><div class="rocket-body">🚀</div><div class="flame"></div></div>
+    <div class="launch-ui">
+      <div id="launch-text" class="launch-text">IGNITION SEQUENCE</div>
+      <div class="launch-bar"><div id="launch-progress" class="launch-progress"></div></div>
+      <div id="launch-status" class="launch-status">T-10</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== GAME SCREEN ========== -->
+<div id="screen-game" class="screen">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title" id="base-name">Moon</span>
+      <span class="day-chip">Day <span id="day">1</span></span>
+      <span id="player-faction-badge-game" class="badge badge-planet"></span>
+    </div>
+    <div id="resource-bar" class="resource-bar"></div>
+    <div class="topbar-actions">
+      <button id="btn-audio" class="icon-btn" title="Toggle Audio">🔊</button>
+      <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
+      <button id="btn-speed" class="icon-btn" title="Speed">▶</button>
+      <button id="btn-map" class="icon-btn" title="Planet Map">🗺️</button>
+      <button id="btn-reset" class="icon-btn" title="Reset Game" style="color:var(--red)">↺</button>
     </div>
   </div>
 
-  <!-- LAUNCH -->
-  <div id="screen-launch" class="screen">
-    <div class="launch-stage">
-      <div class="launch-sky">
-        <div class="launch-stars"></div>
-        <div id="rocket" class="rocket"><div class="rocket-body">🚀</div><div class="flame"></div></div>
-        <div class="pad"></div>
+  <nav class="game-nav">
+    <button class="nav-btn active" data-tab="overview">Overview</button>
+    <button class="nav-btn" data-tab="buildings">Buildings</button>
+    <button class="nav-btn" data-tab="surface">Surface 3D</button>
+    <button class="nav-btn" data-tab="fleet">Fleet <span id="fleet-badge" class="badge-count hidden">0</span></button>
+    <button class="nav-btn" data-tab="research">Research</button>
+    <button class="nav-btn" data-tab="missions">Missions <span id="mission-badge" class="badge-count hidden">0</span></button>
+    <button class="nav-btn" data-tab="log">Log</button>
+  </nav>
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview" class="tab-panel active">
+    <div class="overview-grid">
+      <div class="card">
+        <h3>📈 Production</h3>
+        <div id="prod-list" class="prod-list"></div>
+        <div class="energy-line">Energy: <span id="energy-balance">0 / 0</span></div>
       </div>
-      <div class="launch-ui">
-        <div id="launch-text" class="launch-text">IGNITION SEQUENCE</div>
-        <div class="launch-bar"><div id="launch-progress" class="launch-progress"></div></div>
-        <div id="launch-status" class="launch-status">T-10</div>
+      <div class="card">
+        <h3>🏛️ Colony Status</h3>
+        <div id="status-box"></div>
+      </div>
+      <div class="card">
+        <h3>⚡ Queue</h3>
+        <div id="queue-box" class="queue-box">Nothing in construction</div>
+      </div>
+      <div class="card">
+        <h3>🎖️ Faction</h3>
+        <div id="faction-info"></div>
+      </div>
+      <div class="card">
+        <h3>🛡️ Fleet Power</h3>
+        <div id="fleet-power-box">No ships built yet. Build a Shipyard first!</div>
+      </div>
+      <div class="card">
+        <h3>🔬 Tech Level</h3>
+        <div id="tech-summary-box">No technologies researched yet.</div>
       </div>
     </div>
   </div>
 
-  <!-- HANGAR -->
-  <div id="screen-hangar" class="screen">
-    <div class="bg-space"><div class="stars"></div></div>
-    <header class="topbar">
-      <div class="topbar-left"><span class="topbar-title">Earth Hangar</span><span id="player-faction-badge" class="badge"></span></div>
-      <button id="btn-back-title" class="btn btn-ghost btn-sm">← Back</button>
-    </header>
-    <div class="hangar-layout">
-      <div class="hangar-card rocket-panel">
-        <div class="rocket-icon">🚀</div>
-        <h2>Pioneer Class</h2>
-        <p class="muted">Claim your first moon</p>
-        <div class="cost-tag">Cost: <strong>FREE</strong> (beta)</div>
-        <button id="btn-launch" class="btn btn-primary" disabled>Select a free moon</button>
-      </div>
-      <div class="hangar-card moons-panel">
-        <h2>Earth Orbit — Moons</h2>
-        <div id="moon-list" class="moon-list"></div>
-      </div>
+  <!-- BUILDINGS -->
+  <div id="tab-buildings" class="tab-panel">
+    <div id="buildings-list" class="buildings-list"></div>
+  </div>
+
+  <!-- SURFACE 3D -->
+  <div id="tab-surface" class="tab-panel">
+    <div id="three-container" class="colony-view"></div>
+    <div id="building-tooltip" class="building-tooltip"></div>
+    <div class="surface-overlay">
+      <span style="font-size:.7rem;color:var(--muted);background:rgba(8,12,22,.8);padding:4px 10px;border-radius:8px;border:1px solid var(--border)">🖱️ Click buildings for details</span>
     </div>
   </div>
 
-  <!-- MAIN GAME -->
-  <div id="screen-game" class="screen">
-    <header class="topbar">
-      <div class="topbar-left">
-        <span id="base-name" class="topbar-title">Base</span>
-        <span class="day-chip">Day <span id="day">1</span></span>
-        <span id="planet-badge" class="badge badge-planet">Earth</span>
-      </div>
-      <div class="resource-bar" id="resource-bar"></div>
-      <div class="topbar-actions">
-        <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
-        <button id="btn-speed" class="icon-btn" title="Speed">▶</button>
-        <button id="btn-map" class="icon-btn" title="Map">🗺</button>
-      </div>
-    </header>
-
-    <!-- Nav tabs -->
-    <nav class="game-nav">
-      <button class="nav-btn active" data-tab="overview">Overview</button>
-      <button class="nav-btn" data-tab="buildings">Buildings</button>
-      <button class="nav-btn" data-tab="surface">Surface</button>
-      <button class="nav-btn" data-tab="shipyard">Shipyard</button>
-    </nav>
-
-    <!-- OVERVIEW TAB -->
-    <div id="tab-overview" class="tab-panel active">
-      <div class="overview-grid">
-        <div class="card">
-          <h3>Production / hour</h3>
-          <div id="prod-list" class="prod-list"></div>
-          <div class="energy-line">Energy: <span id="energy-balance">0 / 0</span></div>
-        </div>
-        <div class="card">
-          <h3>Construction Queue</h3>
-          <div id="queue-box" class="queue-box">
-            <p class="muted">Nothing in construction</p>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Colony Status</h3>
-          <div id="status-box"></div>
-        </div>
-        <div class="card">
-          <h3>Faction Bonus</h3>
-          <div id="faction-info"></div>
-        </div>
-      </div>
+  <!-- FLEET -->
+  <div id="tab-fleet" class="tab-panel">
+    <div id="fleet-threat-banner" class="threat-banner hidden">
+      <span class="threat-icon">☠️</span>
+      <div class="threat-text"><strong>PIRATE RAIDERS INCOMING!</strong><br><span id="threat-timer">5:00</span> remaining to defend</div>
+      <button id="btn-defend" class="btn btn-danger btn-sm">DEFEND</button>
     </div>
-
-    <!-- BUILDINGS TAB -->
-    <div id="tab-buildings" class="tab-panel">
-      <div id="buildings-list" class="buildings-list"></div>
-    </div>
-
-    <!-- SURFACE TAB (2D view) -->
-    <div id="tab-surface" class="tab-panel">
-      <div class="colony-view">
-        <div class="colony-sky"><div class="sky-stars"></div><div class="planet-earth"></div></div>
-        <div class="colony-ground">
-          <div class="surface-mesh"></div>
-          <div id="dome-visual" class="dome-visual hidden"></div>
-          <div id="surface-buildings" class="surface-buildings"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SHIPYARD TAB (placeholder) -->
-    <div id="tab-shipyard" class="tab-panel">
-      <div class="card" style="margin:16px;max-width:500px">
-        <h3>Shipyard</h3>
-        <p class="muted">Requires Shipyard level 1. Fleet combat coming in next version.</p>
-        <p>Prepare hangars and defenses for PvP.</p>
-      </div>
-    </div>
-
-    <footer class="bottombar">
-      <div class="objective"><strong>Tip:</strong> <span id="objective">Upgrade mines and keep energy positive</span></div>
-    </footer>
+    <div id="fleet-summary" class="fleet-summary"></div>
+    <div id="fleet-buildings" class="fleet-grid"></div>
+    <div id="ship-queue-box" style="margin-top:12px;font-size:.8rem;color:var(--muted)"></div>
+    <div id="battle-report-box" style="margin-top:12px"></div>
   </div>
 
-  <!-- MAP -->
-  <div id="screen-map" class="screen">
-    <div class="bg-space"><div class="stars"></div></div>
-    <header class="topbar">
-      <div class="topbar-left"><span class="topbar-title">Solar System</span></div>
-      <button id="btn-back-game" class="btn btn-ghost btn-sm">← Base</button>
-    </header>
-    <div class="planet-map" id="planet-map"></div>
+  <!-- RESEARCH -->
+  <div id="tab-research" class="tab-panel">
+    <div id="tech-queue-box" style="margin-bottom:12px;font-size:.8rem;color:var(--muted)"></div>
+    <div id="tech-grid" class="tech-grid"></div>
   </div>
 
-  <script src="js/data.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/ui.js"></script>
+  <!-- MISSIONS -->
+  <div id="tab-missions" class="tab-panel">
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:12px">Daily missions reset at midnight. Complete them for rewards!</div>
+    <div id="mission-list" class="mission-list"></div>
+  </div>
+
+  <!-- LOG -->
+  <div id="tab-log" class="tab-panel">
+    <div id="log-panel" class="log-panel"></div>
+  </div>
+
+  <div class="bottombar">
+    <span class="objective">Next: <strong id="next-obj">Build Robotics Factory</strong></span>
+  </div>
+</div>
+
+<!-- ========== PLANET MAP ========== -->
+<div id="screen-map" class="screen">
+  <div class="topbar">
+    <div class="topbar-left"><span class="topbar-title">🗺️ Solar System</span></div>
+    <button id="btn-back-game" class="btn btn-ghost btn-sm">← Back</button>
+  </div>
+  <div id="planet-map" class="planet-map"></div>
+</div>
+
+<!-- ========== EVENT MODAL ========== -->
+<div id="event-modal" class="modal-overlay">
+  <div class="modal-content">
+    <h3 id="event-title">Event</h3>
+    <p id="event-desc">Description</p>
+    <div id="event-result" class="modal-result"></div>
+    <button id="btn-event-close" class="btn btn-primary btn-sm">Acknowledge</button>
+  </div>
+</div>
+
+<!-- ========== SCRIPTS ========== -->
+<script src="js/data.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+<script src="js/fleet.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/tech.js"></script>
+<script src="js/events.js"></script>
+<script src="js/missions.js"></script>
+<script type="module" src="js/three-scene.js"></script>
+<script src="js/ui.js"></script>
 </body>
 </html>
