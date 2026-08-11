@@ -10,6 +10,11 @@ const Game = {
     if (saved) {
       try {
         this.state = JSON.parse(saved);
+        // migrate old 8x6 grid if needed
+        if (this.state.grid && this.state.grid.length === 6 && this.state.grid[0].length === 8) {
+          this.state.grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
+          this.state.buildings = [];
+        }
         document.getElementById('btn-continue')?.classList.remove('hidden');
       } catch (e) { this.state = null; }
     }
@@ -18,7 +23,7 @@ const Game = {
   createNewGame(factionId) {
     const faction = FACTIONS.find(f => f.id === factionId);
     this.state = {
-      version: '1.2',
+      version: '1.3',
       playerId: 'player_' + Date.now(),
       faction,
       day: 1, tick: 0,
@@ -26,7 +31,7 @@ const Game = {
       storageCap: 200,
       population: 6, popCap: 6, moral: 75,
       buildings: [],
-      grid: Array(6).fill(null).map(() => Array(8).fill(null)),
+      grid: Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null)),
       currentMoon: null,
       moons: generateEarthMoons(),
       governors: { earth: null, mars: null, jupiter: null },
@@ -45,8 +50,10 @@ const Game = {
     if (!moon || moon.owner) return false;
     moon.owner = this.state.playerId;
     this.state.currentMoon = moon;
-    this.placeBuilding('dome', 3, 2, true);
-    this.state.population = 6; this.state.popCap = 6;
+    // Place starting dome roughly in center
+    this.placeBuilding('dome', 2, 1, true);
+    this.state.population = 6;
+    this.state.popCap = 6;
     this.updateGovernor('earth');
     this.log(`Moon claimed: ${moon.name}`);
     this.save();
@@ -78,6 +85,7 @@ const Game = {
       if (def) break;
     }
     if (!def) return false;
+    if (y < 0 || y >= GRID_ROWS || x < 0 || x >= GRID_COLS) return false;
     if (this.state.buildings.filter(b => b.id === buildingId).length >= def.max) return false;
     if (this.state.grid[y][x] !== null) return false;
     if (!free) {
@@ -95,7 +103,7 @@ const Game = {
 
   startLoop() {
     if (this.tickInterval) clearInterval(this.tickInterval);
-    this.tickInterval = setInterval(() => { if (this.speed !== 0) this.tick(); }, 2000 / this.speed);
+    this.tickInterval = setInterval(() => { if (this.speed !== 0) this.tick(); }, 2000 / Math.max(this.speed, 0.5));
   },
 
   stopLoop() {

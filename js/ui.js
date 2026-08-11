@@ -102,8 +102,9 @@ const UI = {
       item.innerHTML = `<h4>${b.icon} ${b.name} (${count}/${b.max})</h4><div class="cost">${this.formatCost(b.cost)} — ${b.desc}</div>`;
       if (can) item.onclick = () => {
         Game.selectedBuilding = b.id;
-        this.showAlert(`Selected: ${b.name}. Tap empty cell on the moon.`);
-        document.getElementById('build-panel').classList.add('hidden');
+        this.showAlert(`Selected: ${b.name}. Tap a free spot on the surface.`);
+        // highlight empty slots
+        document.querySelectorAll('.slot:not(.occupied)').forEach(s => s.classList.add('highlight'));
       };
       list.appendChild(item);
     });
@@ -113,33 +114,63 @@ const UI = {
     return Object.entries(cost).map(([k, v]) => `${RESOURCE_ICONS[k] || k} ${v}`).join('  ');
   },
 
-  renderGrid() {
-    const grid = document.getElementById('base-grid');
-    grid.innerHTML = '';
-    for (let y = 0; y < 6; y++) {
-      for (let x = 0; x < 8; x++) {
-        const cell = document.createElement('div');
-        cell.className = 'cell';
-        const id = Game.state.grid[y][x];
-        if (id) {
-          cell.classList.add('occupied');
-          const def = Game.getBuildingDef(id);
-          cell.innerHTML = `${def ? def.icon : '?'}<span class="b-label">${def ? def.short : ''}</span>`;
+  // Render buildings as 2D sprites on the moon surface
+  renderColony() {
+    const layer = document.getElementById('buildings-layer');
+    const slots = document.getElementById('slots-layer');
+    layer.innerHTML = '';
+    slots.innerHTML = '';
+
+    // Create clickable slots
+    for (let y = 0; y < GRID_ROWS; y++) {
+      for (let x = 0; x < GRID_COLS; x++) {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        slot.dataset.x = x;
+        slot.dataset.y = y;
+
+        const buildingId = Game.state.grid[y][x];
+        if (buildingId) {
+          slot.classList.add('occupied');
         }
-        cell.onclick = () => {
-          if (Game.selectedBuilding && !id) {
+
+        slot.onclick = () => {
+          if (Game.selectedBuilding && !buildingId) {
             if (Game.placeBuilding(Game.selectedBuilding, x, y)) {
               Game.selectedBuilding = null;
-              this.renderGrid();
+              document.querySelectorAll('.slot').forEach(s => s.classList.remove('highlight'));
+              this.renderColony();
               this.renderBuildMenu();
               this.updateResources();
               this.updateStatus();
             }
           }
         };
-        grid.appendChild(cell);
+        slots.appendChild(slot);
       }
     }
+
+    // Place building sprites positioned over their slots
+    Game.state.buildings.forEach(b => {
+      const def = Game.getBuildingDef(b.id);
+      if (!def) return;
+
+      const sprite = document.createElement('div');
+      sprite.className = `building-sprite ${b.id}`;
+      sprite.innerHTML = `
+        <div class="sprite-icon">${def.icon}</div>
+        <div class="sprite-label">${def.short}</div>
+      `;
+
+      // Position based on grid cell (percentage of surface)
+      const leftPct = ((b.x + 0.5) / GRID_COLS) * 100;
+      const topPct = ((b.y + 0.55) / GRID_ROWS) * 100;
+      sprite.style.left = leftPct + '%';
+      sprite.style.top = topPct + '%';
+      sprite.style.transform = 'translate(-50%, -70%)';
+
+      layer.appendChild(sprite);
+    });
   },
 
   updateResources() {
@@ -181,7 +212,7 @@ const UI = {
     else if (!hasOxy) obj = 'Build an O₂ Generator';
     else if (!hasHab) obj = 'Build a Habitat';
     document.getElementById('objective').textContent = obj;
-    document.getElementById('log').innerHTML = s.log.slice(0, 8).map(l => `<div>${l}</div>`).join('');
+    document.getElementById('log').innerHTML = s.log.slice(0, 6).map(l => `<div>${l}</div>`).join('');
   },
 
   updateAll() {
@@ -202,7 +233,7 @@ const UI = {
       if (gov === Game.state.playerId) govT = 'You are the Governor';
       else if (gov) govT = 'Enemy Governor';
       const dots = moons.length === 0
-        ? '<span style="color:var(--muted);font-size:0.76rem">Locked</span>'
+        ? '<span style="color:var(--muted);font-size:0.74rem">Locked</span>'
         : moons.map(m => {
             let cls = 'moon-dot';
             if (m.owner === Game.state.playerId) cls += ' owned';
@@ -280,7 +311,7 @@ const UI = {
 
   enterBase() {
     this.showScreen('screen-game');
-    this.renderGrid();
+    this.renderColony();
     this.renderBuildMenu();
     this.updateAll();
     document.getElementById('build-panel').classList.remove('hidden');

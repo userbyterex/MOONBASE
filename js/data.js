@@ -86,3 +86,7 @@ function generateEarthMoons() {
 const RESOURCE_ICONS = {
   regolith: '🪨', ice: '🧊', metal: '⚙️', rare: '💎', energy: '⚡', oxygen: '💨', food: '🥗'
 };
+
+// Grid size for placement (6 cols x 4 rows on the surface)
+const GRID_COLS = 6;
+const GRID_ROWS = 4;
