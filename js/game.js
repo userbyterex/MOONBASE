@@ -2,52 +2,169 @@ const Game = {
   state: null,
   tickInterval: null,
   speed: 1,
-  selectedMoonId: null,
-  selectedBuilding: null,
 
   init() {
-    const saved = localStorage.getItem('moonbase_save');
-    if (saved) {
+    const s = localStorage.getItem('moonbase_v2');
+    if (s) {
       try {
-        this.state = JSON.parse(saved);
-        if (!this.state.version || this.state.version < '1.4') {
-          // soft reset grid if old format
-          this.state.grid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
-          this.state.buildings = this.state.buildings || [];
-          this.state.version = '1.4';
-        }
+        this.state = JSON.parse(s);
         document.getElementById('btn-continue')?.classList.remove('hidden');
-      } catch (e) { this.state = null; }
+      } catch(e) { this.state = null; }
     }
   },
 
   createNewGame(factionId) {
     const faction = FACTIONS.find(f => f.id === factionId);
+    const levels = {};
+    Object.keys(BUILDINGS).forEach(id => levels[id] = 0);
+
     this.state = {
-      version: '1.4',
-      playerId: 'player_' + Date.now(),
+      version: '2.0',
+      playerId: 'p_' + Date.now(),
       faction,
-      day: 1, tick: 0,
-      resources: { regolith: 80, ice: 40, metal: 25, rare: 0, energy: 20, oxygen: 100, food: 80 },
-      storageCap: 200,
-      population: 6, popCap: 6, moral: 75,
-      buildings: [],
-      grid: Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null)),
+      day: 1,
+      lastTick: Date.now(),
+      resources: { regolith: 500, ice: 300, helium: 50, energy: 0, oxygen: 100, food: 80 },
+      capacity: { regolith: 10000, ice: 10000, helium: 5000 },
+      levels,
+      population: 6,
+      popCap: 10,
+      moral: 75,
+      queue: null, // { buildingId, startTime, duration }
       currentMoon: null,
       moons: generateEarthMoons(),
       governors: { earth: null, mars: null, jupiter: null },
       log: []
     };
     this.save();
-    this.log('Colony founded under ' + faction.name);
+    this.log('Empire founded — ' + faction.name);
   },
 
   save() {
-    if (this.state) localStorage.setItem('moonbase_save', JSON.stringify(this.state));
+    if (this.state) {
+      this.state.lastTick = Date.now();
+      localStorage.setItem('moonbase_v2', JSON.stringify(this.state));
+    }
   },
 
-  getDomeLevel() {
-    return this.state.buildings.filter(b => b.id === 'dome' && b.complete).length;
+  // --- Production formulas (OGame-like) ---
+  levelProd(base, factor, level) {
+    if (level <= 0) return 0;
+    return Math.floor(base * level * Math.pow(factor, level));
+  },
+
+  levelCost(baseCost, factor, level) {
+    const mult = Math.pow(factor, level);
+    const c = {};
+    for (const [k, v] of Object.entries(baseCost)) c[k] = Math.floor(v * mult);
+    return c;
+  },
+
+  levelEnergyNeed(base, factor, level) {
+    if (level <= 0) return 0;
+    return Math.floor(base * level * Math.pow(factor, level));
+  },
+
+  getEnergyProd() {
+    const s = this.state;
+    const mod = s.faction.mod.energy;
+    let e = this.levelProd(BUILDINGS.solar.baseProd, BUILDINGS.solar.prodFactor, s.levels.solar || 0);
+    e += this.levelProd(BUILDINGS.reactor.baseProd, BUILDINGS.reactor.prodFactor, s.levels.reactor || 0);
+    return Math.floor(e * mod);
+  },
+
+  getEnergyNeed() {
+    let need = 0;
+    for (const [id, def] of Object.entries(BUILDINGS)) {
+      if (def.cat === 'energy') continue;
+      need += this.levelEnergyNeed(def.baseEnergy, def.energyFactor, this.state.levels[id] || 0);
+    }
+    return need;
+  },
+
+  getEnergyFactor() {
+    const prod = this.getEnergyProd();
+    const need = this.getEnergyNeed();
+    if (need <= 0) return 1;
+    return Math.min(1, prod / need);
+  },
+
+  getProduction() {
+    const s = this.state;
+    const ef = this.getEnergyFactor();
+    const mm = s.faction.mod.mine;
+    return {
+      regolith: Math.floor(this.levelProd(BUILDINGS.regolith_mine.baseProd, BUILDINGS.regolith_mine.prodFactor, s.levels.regolith_mine || 0) * ef * mm),
+      ice: Math.floor(this.levelProd(BUILDINGS.ice_mine.baseProd, BUILDINGS.ice_mine.prodFactor, s.levels.ice_mine || 0) * ef * mm),
+      helium: Math.floor(this.levelProd(BUILDINGS.helium_synth.baseProd, BUILDINGS.helium_synth.prodFactor, s.levels.helium_synth || 0) * ef * mm),
+      oxygen: Math.floor(this.levelProd(BUILDINGS.oxygen.baseProd, BUILDINGS.oxygen.prodFactor, s.levels.oxygen || 0)),
+      food: Math.floor(this.levelProd(BUILDINGS.hydro.baseProd, BUILDINGS.hydro.prodFactor, s.levels.hydro || 0)),
+      energy: this.getEnergyProd()
+    };
+  },
+
+  updateCapacity() {
+    const lvl = this.state.levels.storage || 0;
+    const base = 10000;
+    const cap = Math.floor(base * Math.pow(1.6, lvl));
+    this.state.capacity = { regolith: cap, ice: cap, helium: Math.floor(cap * 0.5) };
+    const hab = this.state.levels.habitat || 0;
+    this.state.popCap = 10 + hab * 4;
+  },
+
+  canAfford(cost) {
+    for (const [k, v] of Object.entries(cost)) {
+      if ((this.state.resources[k] || 0) < v) return false;
+    }
+    return true;
+  },
+
+  pay(cost) {
+    for (const [k, v] of Object.entries(cost)) this.state.resources[k] -= v;
+  },
+
+  canUpgrade(id) {
+    const def = BUILDINGS[id];
+    if (!def) return false;
+    const lvl = this.state.levels[id] || 0;
+    if (lvl >= def.maxLevel) return false;
+    if (this.state.queue) return false;
+    if (def.requires) {
+      for (const [reqId, reqLvl] of Object.entries(def.requires)) {
+        if ((this.state.levels[reqId] || 0) < reqLvl) return false;
+      }
+    }
+    const cost = this.levelCost(def.baseCost, def.costFactor, lvl);
+    return this.canAfford(cost);
+  },
+
+  getBuildTime(id) {
+    const def = BUILDINGS[id];
+    const lvl = this.state.levels[id] || 0;
+    const cost = this.levelCost(def.baseCost, def.costFactor, lvl);
+    const totalRes = (cost.regolith || 0) + (cost.ice || 0) + (cost.helium || 0);
+    const robots = this.state.levels.robotics || 0;
+    const baseTime = Math.max(5, Math.floor(totalRes / 40)); // seconds
+    const reduction = Math.pow(0.9, robots) * this.state.faction.mod.build;
+    return Math.max(3, Math.floor(baseTime * reduction));
+  },
+
+  startUpgrade(id) {
+    if (!this.canUpgrade(id)) return false;
+    const def = BUILDINGS[id];
+    const lvl = this.state.levels[id] || 0;
+    const cost = this.levelCost(def.baseCost, def.costFactor, lvl);
+    this.pay(cost);
+    const duration = this.getBuildTime(id);
+    this.state.queue = {
+      buildingId: id,
+      levelTo: lvl + 1,
+      startTime: Date.now(),
+      duration: duration * 1000
+    };
+    this.log(`Upgrading ${def.name} to level ${lvl + 1}`);
+    this.save();
+    return true;
   },
 
   claimMoon(moonId) {
@@ -55,12 +172,15 @@ const Game = {
     if (!moon || moon.owner) return false;
     moon.owner = this.state.playerId;
     this.state.currentMoon = moon;
-    // Start with a free completed dome
-    this.placeBuilding('dome', 2, 1, true, true);
-    this.state.population = 6;
-    this.state.popCap = 6;
+    // Starting levels
+    this.state.levels.dome = 1;
+    this.state.levels.solar = 1;
+    this.state.levels.regolith_mine = 1;
+    this.state.levels.habitat = 1;
+    this.state.levels.oxygen = 1;
+    this.updateCapacity();
     this.updateGovernor('earth');
-    this.log(`Moon claimed: ${moon.name}`);
+    this.log('Moon claimed: ' + moon.name);
     this.save();
     return true;
   },
@@ -74,158 +194,87 @@ const Game = {
     this.state.governors[planetId] = max > moons.length / 2 ? winner : null;
   },
 
-  canAfford(cost) {
-    for (const [r, a] of Object.entries(cost)) if ((this.state.resources[r] || 0) < a) return false;
-    return true;
-  },
-
-  pay(cost) {
-    for (const [r, a] of Object.entries(cost)) this.state.resources[r] -= a;
-  },
-
-  placeBuilding(buildingId, x, y, free = false, instant = false) {
-    let def = null;
-    for (const cat of Object.values(BUILDINGS)) {
-      def = cat.find(b => b.id === buildingId);
-      if (def) break;
-    }
-    if (!def) return false;
-    if (y < 0 || y >= GRID_ROWS || x < 0 || x >= GRID_COLS) return false;
-
-    const completed = this.state.buildings.filter(b => b.id === buildingId && b.complete).length;
-    if (completed + this.state.buildings.filter(b => b.id === buildingId && !b.complete).length >= def.max) return false;
-    if (this.state.grid[y][x] !== null) return false;
-
-    // Check if slot is unlocked by dome level
-    const unlocked = slotsUnlocked(this.getDomeLevel());
-    const slotIndex = y * GRID_COLS + x;
-    if (slotIndex >= unlocked && !instant) return false;
-
-    if (!free) {
-      if (!this.canAfford(def.cost)) return false;
-      this.pay(def.cost);
-    }
-
-    this.state.grid[y][x] = buildingId;
-    const b = {
-      id: buildingId,
-      x, y,
-      level: 1,
-      complete: instant,
-      progress: instant ? 1 : 0,
-      buildTime: def.buildTime || 3
+  // Apply offline + tick production
+  applyProduction(dtSeconds) {
+    const prod = this.getProduction();
+    const hours = dtSeconds / 3600;
+    const add = (key, amount) => {
+      const cap = this.state.capacity[key] || 999999;
+      this.state.resources[key] = Math.min(cap, (this.state.resources[key] || 0) + amount);
     };
-    this.state.buildings.push(b);
+    add('regolith', prod.regolith * hours);
+    add('ice', prod.ice * hours);
+    add('helium', prod.helium * hours);
+    this.state.resources.oxygen = Math.min(500, (this.state.resources.oxygen || 0) + prod.oxygen * hours);
+    this.state.resources.food = Math.min(500, (this.state.resources.food || 0) + prod.food * hours);
 
-    if (instant && def.effect) {
-      if (def.effect.popCap) this.state.popCap += def.effect.popCap;
-      if (def.effect.storage) this.state.storageCap += def.effect.storage;
+    // Population consumption
+    const pop = this.state.population;
+    this.state.resources.oxygen = Math.max(0, this.state.resources.oxygen - pop * 0.5 * hours);
+    this.state.resources.food = Math.max(0, this.state.resources.food - pop * 0.4 * hours);
+
+    // Reactor helium drain
+    const reactLvl = this.state.levels.reactor || 0;
+    if (reactLvl > 0) {
+      this.state.resources.helium = Math.max(0, this.state.resources.helium - reactLvl * 2 * hours);
     }
-
-    this.log(instant ? `Deployed: ${def.name}` : `Constructing: ${def.name}`);
-    this.save();
-    return true;
   },
 
-  startLoop() {
-    if (this.tickInterval) clearInterval(this.tickInterval);
-    this.tickInterval = setInterval(() => { if (this.speed !== 0) this.tick(); }, 900 / Math.max(this.speed, 0.5));
-  },
-
-  stopLoop() {
-    if (this.tickInterval) { clearInterval(this.tickInterval); this.tickInterval = null; }
+  processQueue() {
+    if (!this.state.queue) return false;
+    const q = this.state.queue;
+    const elapsed = Date.now() - q.startTime;
+    if (elapsed >= q.duration) {
+      this.state.levels[q.buildingId] = q.levelTo;
+      this.log(`Completed: ${BUILDINGS[q.buildingId].name} level ${q.levelTo}`);
+      this.state.queue = null;
+      this.updateCapacity();
+      return true;
+    }
+    return false;
   },
 
   tick() {
     if (!this.state?.currentMoon) return;
+    const now = Date.now();
+    const dt = Math.min(3600, (now - (this.state.lastTick || now)) / 1000); // max 1h catchup per tick
+    this.state.lastTick = now;
 
-    // Advance construction
-    let anyBuilt = false;
-    this.state.buildings.forEach(b => {
-      if (b.complete) return;
-      b.progress += (1 / (b.buildTime * 4)); // ~buildTime seconds at speed 1
-      if (b.progress >= 1) {
-        b.progress = 1;
-        b.complete = true;
-        anyBuilt = true;
-        const def = this.getBuildingDef(b.id);
-        if (def?.effect) {
-          if (def.effect.popCap) this.state.popCap += def.effect.popCap;
-          if (def.effect.storage) this.state.storageCap += def.effect.storage;
-        }
-        this.log(`Completed: ${def ? def.name : b.id}`);
-      }
-    });
+    this.applyProduction(dt * this.speed);
+    const finished = this.processQueue();
 
-    const mods = this.state.faction.modifiers;
-    let oxy = 0, food = 0, energy = 0, reg = 0, ice = 0, metal = 0;
-
-    this.state.buildings.filter(b => b.complete).forEach(b => {
-      let def = this.getBuildingDef(b.id);
-      if (!def?.effect) return;
-      if (def.effect.oxygen) oxy += def.effect.oxygen * mods.oxygen;
-      if (def.effect.food) food += def.effect.food * mods.food;
-      if (def.effect.energy) energy += def.effect.energy * mods.energy;
-      if (def.effect.regolith) reg += def.effect.regolith * mods.mining;
-      if (def.effect.ice) ice += def.effect.ice * mods.mining;
-      if (def.effect.metal) metal += def.effect.metal * mods.mining;
-    });
-
-    const add = (k, v) => { this.state.resources[k] = Math.min(this.state.storageCap, (this.state.resources[k] || 0) + v); };
-    add('oxygen', oxy * 0.45); add('food', food * 0.45); add('energy', energy * 0.45);
-    add('regolith', reg * 0.45); add('ice', ice * 0.45); add('metal', metal * 0.45);
-
-    const pop = this.state.population;
-    this.state.resources.oxygen = Math.max(0, this.state.resources.oxygen - pop * 0.35);
-    this.state.resources.food = Math.max(0, this.state.resources.food - pop * 0.28);
-    this.state.resources.energy = Math.max(0, this.state.resources.energy - this.state.buildings.filter(b => b.complete).length * 0.2);
-
-    let mc = 0;
-    if (this.state.resources.oxygen < pop * 2) mc -= 2;
-    if (this.state.resources.food < pop * 1.5) mc -= 1.5;
-    if (this.state.resources.oxygen > 50 && this.state.resources.food > 40) mc += 0.8;
-    this.state.moral = Math.max(0, Math.min(100, this.state.moral + mc));
-
-    if (this.state.resources.oxygen <= 0 || this.state.resources.food <= 0) {
-      if (this.state.population > 0 && Math.random() < 0.3) {
-        this.state.population--;
-        this.log('⚠ Colonist died from shortage');
-      }
-    } else if (this.state.moral > 60 && this.state.population < this.state.popCap && Math.random() < 0.08 * mods.popGrowth) {
+    // Population growth
+    if (this.state.resources.oxygen > 20 && this.state.resources.food > 20 && this.state.population < this.state.popCap && Math.random() < 0.02) {
       this.state.population++;
-      this.log('👤 New colonist arrived');
+      this.log('New colonist arrived');
     }
 
-    this.state.tick++;
-    if (this.state.tick % 8 === 0) this.state.day++;
-
-    if (this.state.population <= 0) {
-      this.log('💀 Colony lost.');
-      this.speed = 0; this.stopLoop();
-    }
+    this.state.day = Math.floor((now - (this.state.created || now)) / 86400000) + 1;
+    if (!this.state.created) this.state.created = now;
 
     this.save();
-    UI.updateAll();
-    if (anyBuilt) UI.renderColony();
-    else UI.updateConstructionBars();
+    UI.refresh();
+    if (finished) UI.renderBuildings();
+  },
+
+  startLoop() {
+    // Catch up offline production (max 8 hours)
+    if (this.state?.lastTick) {
+      const offline = Math.min(28800, (Date.now() - this.state.lastTick) / 1000);
+      if (offline > 30) {
+        this.applyProduction(offline);
+        this.processQueue();
+        this.log(`Offline production applied (${Math.floor(offline/60)} min)`);
+      }
+    }
+    if (this.tickInterval) clearInterval(this.tickInterval);
+    this.tickInterval = setInterval(() => { if (this.speed !== 0) this.tick(); }, 1000);
   },
 
   log(msg) {
     if (!this.state) return;
     this.state.log.unshift(`[D${this.state.day}] ${msg}`);
-    if (this.state.log.length > 40) this.state.log.pop();
-  },
-
-  getBuildingDef(id) {
-    for (const cat of Object.values(BUILDINGS)) {
-      const f = cat.find(b => b.id === id);
-      if (f) return f;
-    }
-    return null;
-  },
-
-  countBuilding(id, onlyComplete = false) {
-    return this.state.buildings.filter(b => b.id === id && (!onlyComplete || b.complete)).length;
+    if (this.state.log.length > 30) this.state.log.pop();
   }
 };
 

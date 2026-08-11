@@ -1,15 +1,10 @@
 const UI = {
-  currentCategory: 'life',
   selectedFaction: null,
-  panX: 0,
-  panY: 0,
-  isPanning: false,
-  panStart: null,
+  currentTab: 'overview',
 
   init() {
     this.renderFactions();
     this.bindEvents();
-    this.setupPan();
     if (Game.state?.currentMoon) document.getElementById('btn-continue').classList.remove('hidden');
   },
 
@@ -22,27 +17,23 @@ const UI = {
     const c = document.getElementById('faction-select');
     c.innerHTML = '';
     FACTIONS.forEach(f => {
-      const card = document.createElement('div');
-      card.className = 'faction-card';
-      card.style.setProperty('--faction-color', f.color);
-      card.style.setProperty('--faction-bg', f.bg);
-      card.innerHTML = `
-        <div class="faction-avatar">${f.avatar}<span class="role">${f.role}</span></div>
-        <h4 style="color:${f.color}">${f.name}</h4>
-        <p>${f.desc}</p>
-        <div class="bonus">${f.bonus}</div>`;
-      card.onclick = () => {
+      const el = document.createElement('div');
+      el.className = 'faction-card';
+      el.style.setProperty('--fc', f.color);
+      el.style.setProperty('--fbg', f.bg);
+      el.innerHTML = `<div class="faction-avatar">${f.avatar}</div><h4 style="color:${f.color}">${f.name}</h4><p>${f.desc}</p><div class="bonus">${f.bonus}</div>`;
+      el.onclick = () => {
         document.querySelectorAll('.faction-card').forEach(x => x.classList.remove('selected'));
-        card.classList.add('selected');
+        el.classList.add('selected');
         document.getElementById('btn-start').disabled = false;
         document.getElementById('btn-start').querySelector('span').textContent = 'Launch Colony';
         this.selectedFaction = f.id;
       };
-      c.appendChild(card);
+      c.appendChild(el);
     });
   },
 
-  playLaunchAnimation(cb) {
+  playLaunch(cb) {
     this.showScreen('screen-launch');
     const rocket = document.getElementById('rocket');
     const progress = document.getElementById('launch-progress');
@@ -52,14 +43,12 @@ const UI = {
     progress.style.width = '0%';
     text.textContent = 'IGNITION SEQUENCE';
     status.textContent = 'T-10';
-
     let t = 10;
     const iv = setInterval(() => {
       t--;
       status.textContent = 'T-' + t;
       progress.style.width = ((10 - t) * 10) + '%';
-      if (t === 6) { text.textContent = 'ENGINES ONLINE'; rocket.classList.add('ignite'); }
-      if (t === 3) text.textContent = 'MAIN ENGINE START';
+      if (t === 5) { text.textContent = 'ENGINES ONLINE'; rocket.classList.add('ignite'); }
       if (t === 1) text.textContent = 'LIFTOFF';
       if (t <= 0) {
         clearInterval(iv);
@@ -67,193 +56,174 @@ const UI = {
         progress.style.width = '100%';
         rocket.classList.add('liftoff');
         text.textContent = 'TRANSIT TO ORBIT';
-        setTimeout(cb, 3400);
+        setTimeout(cb, 3200);
       }
-    }, 400);
+    }, 380);
   },
 
   renderMoons() {
     const list = document.getElementById('moon-list');
     list.innerHTML = '';
     Game.state.moons.filter(m => m.planet === 'earth').forEach(m => {
-      const card = document.createElement('div');
-      card.className = 'moon-card' + (m.owner ? ' claimed' : '');
-      let st = m.owner === Game.state.playerId ? '<span class="status free">Yours</span>'
-             : m.owner ? '<span class="status taken">Taken</span>'
-             : '<span class="status free">Free</span>';
-      card.innerHTML = `<div><strong>${m.name}</strong><br><small>${m.resources.primary} · ${m.resources.secondary}</small></div>${st}`;
+      const el = document.createElement('div');
+      el.className = 'moon-card' + (m.owner ? ' claimed' : '');
+      const st = m.owner === Game.state.playerId ? '<span class="free">Yours</span>' : m.owner ? '<span class="taken">Taken</span>' : '<span class="free">Free</span>';
+      el.innerHTML = `<div><strong>${m.name}</strong></div>${st}`;
       if (!m.owner) {
-        card.onclick = () => {
+        el.onclick = () => {
           document.querySelectorAll('.moon-card').forEach(x => x.classList.remove('selected'));
-          card.classList.add('selected');
+          el.classList.add('selected');
           Game.selectedMoonId = m.id;
           const btn = document.getElementById('btn-launch');
           btn.disabled = false;
           btn.textContent = `Launch to ${m.name}`;
         };
       }
-      list.appendChild(card);
+      list.appendChild(el);
     });
   },
 
-  renderBuildMenu() {
-    const list = document.getElementById('build-list');
-    list.innerHTML = '';
-    (BUILDINGS[this.currentCategory] || []).forEach(b => {
-      const count = Game.countBuilding(b.id);
-      const can = count < b.max && Game.canAfford(b.cost);
-      const item = document.createElement('div');
-      item.className = 'build-item' + (can ? '' : ' disabled');
-      item.innerHTML = `<h4>${b.icon} ${b.name} (${count}/${b.max})</h4>
-        <div class="cost">${this.formatCost(b.cost)} — ${b.desc}</div>`;
-      if (can) item.onclick = () => {
-        Game.selectedBuilding = b.id;
-        this.showAlert(`Selected: ${b.name}. Tap a free unlocked slot.`);
-        document.querySelectorAll('.slot:not(.occupied):not(.locked)').forEach(s => s.classList.add('highlight'));
-      };
-      list.appendChild(item);
-    });
+  switchTab(tab) {
+    this.currentTab = tab;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+    if (tab === 'buildings') this.renderBuildings();
+    if (tab === 'surface') this.renderSurface();
+    if (tab === 'overview') this.refresh();
   },
 
-  formatCost(cost) {
-    return Object.entries(cost).map(([k, v]) => `${RESOURCE_ICONS[k] || k} ${v}`).join('  ');
-  },
-
-  renderColony() {
-    const layer = document.getElementById('buildings-layer');
-    const slots = document.getElementById('slots-layer');
-    const domeEl = document.getElementById('dome-visual');
-    layer.innerHTML = '';
-    slots.innerHTML = '';
-
-    const domeLevel = Game.getDomeLevel();
-    const unlocked = slotsUnlocked(domeLevel);
-
-    // Dome visual
-    if (domeLevel > 0) {
-      domeEl.classList.remove('hidden', 'level-1', 'level-2', 'level-3');
-      domeEl.classList.add('level-' + Math.min(domeLevel, 3));
-    } else {
-      domeEl.classList.add('hidden');
-    }
-
-    // Slots
-    for (let y = 0; y < GRID_ROWS; y++) {
-      for (let x = 0; x < GRID_COLS; x++) {
-        const slot = document.createElement('div');
-        slot.className = 'slot';
-        slot.dataset.x = x;
-        slot.dataset.y = y;
-        const idx = y * GRID_COLS + x;
-        const buildingId = Game.state.grid[y][x];
-
-        if (buildingId) slot.classList.add('occupied');
-        else if (idx >= unlocked) slot.classList.add('locked');
-
-        slot.onclick = () => {
-          if (Game.selectedBuilding && !buildingId && idx < unlocked) {
-            if (Game.placeBuilding(Game.selectedBuilding, x, y)) {
-              Game.selectedBuilding = null;
-              document.querySelectorAll('.slot').forEach(s => s.classList.remove('highlight'));
-              this.renderColony();
-              this.renderBuildMenu();
-              this.updateResources();
-              this.updateStatus();
-            }
-          }
-        };
-        slots.appendChild(slot);
-      }
-    }
-
-    // Building sprites
-    Game.state.buildings.forEach(b => {
-      if (b.id === 'dome') return; // dome is the big transparent overlay
-
-      const def = Game.getBuildingDef(b.id);
-      if (!def) return;
-
-      const sprite = document.createElement('div');
-      sprite.className = 'building-sprite' + (b.complete ? ' complete' : ' constructing');
-      sprite.dataset.key = `${b.x}-${b.y}`;
-
-      let barHtml = '';
-      if (!b.complete) {
-        barHtml = `<div class="build-bar"><div class="build-bar-fill" style="width:${Math.floor(b.progress * 100)}%"></div></div>`;
-      }
-
-      sprite.innerHTML = `
-        <div class="sprite-icon">${def.icon}</div>
-        <div class="sprite-label">${def.short}</div>
-        ${barHtml}
-      `;
-
-      const leftPct = ((b.x + 0.5) / GRID_COLS) * 100;
-      const topPct = ((b.y + 0.55) / GRID_ROWS) * 100;
-      sprite.style.left = leftPct + '%';
-      sprite.style.top = topPct + '%';
-      sprite.style.transform = 'translate(-50%, -70%)';
-
-      layer.appendChild(sprite);
-    });
-  },
-
-  updateConstructionBars() {
-    Game.state.buildings.forEach(b => {
-      if (b.complete) return;
-      const el = document.querySelector(`.building-sprite[data-key="${b.x}-${b.y}"] .build-bar-fill`);
-      if (el) el.style.width = Math.floor(b.progress * 100) + '%';
-    });
+  refresh() {
+    if (!Game.state?.currentMoon) return;
+    this.updateResources();
+    this.updateOverview();
+    this.updateQueue();
   },
 
   updateResources() {
     const r = Game.state.resources;
     document.getElementById('resource-bar').innerHTML = `
-      <div class="res-item">${RESOURCE_ICONS.regolith} <span class="val">${Math.floor(r.regolith)}</span></div>
-      <div class="res-item">${RESOURCE_ICONS.ice} <span class="val">${Math.floor(r.ice)}</span></div>
-      <div class="res-item">${RESOURCE_ICONS.metal} <span class="val">${Math.floor(r.metal)}</span></div>
-      <div class="res-item">${RESOURCE_ICONS.energy} <span class="val">${Math.floor(r.energy)}</span></div>
-      <div class="res-item">${RESOURCE_ICONS.rare} <span class="val">${Math.floor(r.rare)}</span></div>`;
+      <div class="res-item">${RES_ICON.regolith} <span class="val">${Math.floor(r.regolith)}</span></div>
+      <div class="res-item">${RES_ICON.ice} <span class="val">${Math.floor(r.ice)}</span></div>
+      <div class="res-item">${RES_ICON.helium} <span class="val">${Math.floor(r.helium)}</span></div>
+      <div class="res-item">${RES_ICON.energy} <span class="val">${Game.getEnergyProd()}</span></div>`;
+    document.getElementById('base-name').textContent = Game.state.currentMoon.name;
+    document.getElementById('day').textContent = Game.state.day;
   },
 
-  updateStatus() {
-    const s = Game.state;
-    document.getElementById('day').textContent = s.day;
-    document.getElementById('pop-count').textContent = `${s.population} / ${s.popCap}`;
-    document.getElementById('base-name').textContent = s.currentMoon?.name || 'Base';
+  updateOverview() {
+    const prod = Game.getProduction();
+    const need = Game.getEnergyNeed();
+    const have = Game.getEnergyProd();
+    const ef = Game.getEnergyFactor();
 
-    const oxyPct = Math.min(100, (s.resources.oxygen / (s.population * 5 + 20)) * 100);
-    const foodPct = Math.min(100, (s.resources.food / (s.population * 4 + 20)) * 100);
-    document.getElementById('oxy-fill').style.width = oxyPct + '%';
-    document.getElementById('oxy-val').textContent = Math.floor(oxyPct) + '%';
-    document.getElementById('food-fill').style.width = foodPct + '%';
-    document.getElementById('food-val').textContent = Math.floor(foodPct) + '%';
-    document.getElementById('moral-fill').style.width = s.moral + '%';
-    document.getElementById('moral-val').textContent = Math.floor(s.moral) + '%';
+    document.getElementById('prod-list').innerHTML = `
+      <div>${RES_ICON.regolith} Regolith: <span>+${prod.regolith}/h</span></div>
+      <div>${RES_ICON.ice} Ice: <span>+${prod.ice}/h</span></div>
+      <div>${RES_ICON.helium} Helium-3: <span>+${prod.helium}/h</span></div>
+      <div>${RES_ICON.oxygen} Oxygen: <span>+${prod.oxygen}/h</span></div>
+      <div>${RES_ICON.food} Food: <span>+${prod.food}/h</span></div>
+      ${ef < 1 ? '<div style="color:var(--red)">⚠ Low energy — production reduced</div>' : ''}`;
 
-    const hasDome = Game.countBuilding('dome', true) > 0;
-    const hasOxy = Game.countBuilding('oxygen', true) > 0;
-    const hasHab = Game.countBuilding('habitat', true) > 0;
-    const domeLvl = Game.getDomeLevel();
-    document.getElementById('base-status').innerHTML = `
-      <div>Dome: ${hasDome ? '✅ L' + domeLvl : '❌'}</div>
-      <div>Oxygen: ${hasOxy ? '✅' : '❌'}</div>
-      <div>Habitat: ${hasHab ? '✅' : '❌'}</div>
-      <div>Buildings: ${s.buildings.filter(b => b.complete).length}</div>`;
+    document.getElementById('energy-balance').textContent = `${have} / ${need}`;
+    document.getElementById('energy-balance').style.color = have >= need ? 'var(--green)' : 'var(--red)';
 
-    let obj = 'Expand and survive';
-    if (!hasDome) obj = 'Build a Dome';
-    else if (!hasOxy) obj = 'Build an O₂ Generator';
-    else if (!hasHab) obj = 'Build a Habitat';
-    else if (domeLvl < 3) obj = 'Upgrade Dome for more space';
-    document.getElementById('objective').textContent = obj;
-    document.getElementById('log').innerHTML = s.log.slice(0, 6).map(l => `<div>${l}</div>`).join('');
+    document.getElementById('status-box').innerHTML = `
+      <div>Population: ${Game.state.population} / ${Game.state.popCap}</div>
+      <div>Oxygen: ${Math.floor(Game.state.resources.oxygen)}</div>
+      <div>Food: ${Math.floor(Game.state.resources.food)}</div>
+      <div>Dome level: ${Game.state.levels.dome || 0}</div>`;
+
+    document.getElementById('faction-info').innerHTML = `
+      <div style="color:${Game.state.faction.color}">${Game.state.faction.name}</div>
+      <div class="muted">${Game.state.faction.bonus}</div>`;
   },
 
-  updateAll() {
-    this.updateResources();
-    this.updateStatus();
-    this.renderBuildMenu();
+  updateQueue() {
+    const box = document.getElementById('queue-box');
+    const q = Game.state.queue;
+    if (!q) {
+      box.innerHTML = '<p class="muted">Nothing in construction</p>';
+      return;
+    }
+    const def = BUILDINGS[q.buildingId];
+    const elapsed = Date.now() - q.startTime;
+    const pct = Math.min(100, (elapsed / q.duration) * 100);
+    const left = Math.max(0, Math.ceil((q.duration - elapsed) / 1000));
+    box.innerHTML = `
+      <div class="q-item">
+        <div><strong>${def.icon} ${def.name}</strong> → Level ${q.levelTo}</div>
+        <div class="muted">${left}s remaining</div>
+        <div class="queue-bar"><div class="queue-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  },
+
+  renderBuildings() {
+    const list = document.getElementById('buildings-list');
+    list.innerHTML = '';
+    const order = ['regolith_mine','ice_mine','helium_synth','solar','reactor','storage','dome','habitat','oxygen','hydro','robotics','shipyard','lab'];
+    order.forEach(id => {
+      const def = BUILDINGS[id];
+      if (!def) return;
+      const lvl = Game.state.levels[id] || 0;
+      const cost = Game.levelCost(def.baseCost, def.costFactor, lvl);
+      const can = Game.canUpgrade(id);
+      const time = Game.getBuildTime(id);
+      const costStr = Object.entries(cost).map(([k,v]) => `${RES_ICON[k]||k} ${v}`).join('  ');
+
+      let reqStr = '';
+      if (def.requires) {
+        const missing = Object.entries(def.requires).filter(([rid, rl]) => (Game.state.levels[rid]||0) < rl);
+        if (missing.length) reqStr = `<div class="desc" style="color:var(--red)">Requires: ${missing.map(([rid,rl]) => BUILDINGS[rid].name + ' ' + rl).join(', ')}</div>`;
+      }
+
+      const row = document.createElement('div');
+      row.className = 'b-row';
+      row.innerHTML = `
+        <div class="b-icon">${def.icon}</div>
+        <div class="b-info">
+          <h4>${def.name}</h4>
+          <div class="lvl">Level ${lvl}${lvl >= def.maxLevel ? ' (MAX)' : ''}</div>
+          <div class="desc">${def.desc}</div>
+          ${reqStr}
+          ${lvl < def.maxLevel ? `<div class="cost">${costStr}</div>` : ''}
+        </div>
+        <div class="b-actions">
+          ${lvl < def.maxLevel ? `<button class="btn-upgrade" ${can?'':'disabled'} data-id="${id}">Upgrade</button>
+          <div class="time">${time}s</div>` : '<span class="muted">Max</span>'}
+        </div>`;
+      list.appendChild(row);
+    });
+
+    list.querySelectorAll('.btn-upgrade').forEach(btn => {
+      btn.onclick = () => {
+        if (Game.startUpgrade(btn.dataset.id)) {
+          this.renderBuildings();
+          this.refresh();
+        }
+      };
+    });
+  },
+
+  renderSurface() {
+    const box = document.getElementById('surface-buildings');
+    const dome = document.getElementById('dome-visual');
+    box.innerHTML = '';
+    const dl = Game.state.levels.dome || 0;
+    if (dl > 0) {
+      dome.classList.remove('hidden', 'level-1', 'level-2', 'level-3');
+      dome.classList.add('level-' + Math.min(dl, 3));
+    } else dome.classList.add('hidden');
+
+    const show = ['regolith_mine','ice_mine','solar','habitat','oxygen','hydro','shipyard','reactor'];
+    show.forEach(id => {
+      const lvl = Game.state.levels[id] || 0;
+      if (lvl <= 0) return;
+      const def = BUILDINGS[id];
+      const el = document.createElement('div');
+      el.className = 'surf-bldg';
+      el.innerHTML = `<div class="ico">${def.icon}</div><div class="nm">${def.name.split(' ')[0]}</div><div class="lv">Lv ${lvl}</div>`;
+      box.appendChild(el);
+    });
   },
 
   renderPlanetMap() {
@@ -264,56 +234,18 @@ const UI = {
       card.className = 'planet-card';
       const moons = Game.state.moons.filter(m => m.planet === p.id);
       const gov = Game.state.governors[p.id];
-      let govT = 'No Governor';
-      if (gov === Game.state.playerId) govT = 'You are the Governor';
-      else if (gov) govT = 'Enemy Governor';
-      const dots = moons.length === 0
-        ? '<span style="color:var(--muted);font-size:0.74rem">Locked</span>'
-        : moons.map(m => {
-            let cls = 'moon-dot';
-            if (m.owner === Game.state.playerId) cls += ' owned';
-            else if (m.owner) cls += ' enemy';
-            return `<div class="${cls}">${m.owner ? '●' : '○'}</div>`;
-          }).join('');
-      card.innerHTML = `<h3>${p.name}</h3><div class="gov">${govT}</div><div class="moon-mini">${dots}</div>`;
+      let gt = 'No Governor';
+      if (gov === Game.state.playerId) gt = 'You are Governor';
+      else if (gov) gt = 'Enemy Governor';
+      const dots = moons.length ? moons.map(m => {
+        let cls = 'moon-dot';
+        if (m.owner === Game.state.playerId) cls += ' owned';
+        else if (m.owner) cls += ' enemy';
+        return `<div class="${cls}">${m.owner ? '●' : '○'}</div>`;
+      }).join('') : '<span class="muted">Locked</span>';
+      card.innerHTML = `<h3>${p.name}</h3><div class="gov">${gt}</div><div class="moon-mini">${dots}</div>`;
       c.appendChild(card);
     });
-  },
-
-  showAlert(msg) {
-    const box = document.getElementById('alert-box');
-    box.textContent = msg;
-    box.classList.remove('hidden');
-    setTimeout(() => box.classList.add('hidden'), 2500);
-  },
-
-  setupPan() {
-    const view = document.getElementById('colony-view');
-    const ground = document.getElementById('colony-ground');
-    if (!view || !ground) return;
-
-    const onStart = (e) => {
-      this.isPanning = true;
-      const pt = e.touches ? e.touches[0] : e;
-      this.panStart = { x: pt.clientX - this.panX, y: pt.clientY - this.panY };
-    };
-    const onMove = (e) => {
-      if (!this.isPanning) return;
-      e.preventDefault();
-      const pt = e.touches ? e.touches[0] : e;
-      this.panX = Math.max(-40, Math.min(40, pt.clientX - this.panStart.x));
-      this.panY = Math.max(-30, Math.min(30, pt.clientY - this.panStart.y));
-      ground.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
-    };
-    const onEnd = () => { this.isPanning = false; };
-
-    view.addEventListener('mousedown', onStart);
-    view.addEventListener('mousemove', onMove);
-    view.addEventListener('mouseup', onEnd);
-    view.addEventListener('mouseleave', onEnd);
-    view.addEventListener('touchstart', onStart, { passive: true });
-    view.addEventListener('touchmove', onMove, { passive: false });
-    view.addEventListener('touchend', onEnd);
   },
 
   bindEvents() {
@@ -324,48 +256,30 @@ const UI = {
       this.showScreen('screen-hangar');
       this.renderMoons();
     };
-
     document.getElementById('btn-continue').onclick = () => {
       if (!Game.state) return;
       document.getElementById('player-faction-badge').textContent = Game.state.faction.name;
-      if (Game.state.currentMoon) this.enterBase();
+      if (Game.state.currentMoon) this.enterGame();
       else { this.showScreen('screen-hangar'); this.renderMoons(); }
     };
-
     document.getElementById('btn-back-title').onclick = () => this.showScreen('screen-title');
-
     document.getElementById('btn-launch').onclick = () => {
       if (!Game.selectedMoonId) return;
-      this.playLaunchAnimation(() => {
-        if (Game.claimMoon(Game.selectedMoonId)) this.enterBase();
+      this.playLaunch(() => {
+        if (Game.claimMoon(Game.selectedMoonId)) this.enterGame();
       });
     };
-
-    document.querySelectorAll('.tab').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentCategory = btn.dataset.cat;
-        this.renderBuildMenu();
-      };
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.onclick = () => this.switchTab(btn.dataset.tab);
     });
-
     document.getElementById('btn-pause').onclick = () => {
       Game.speed = Game.speed === 0 ? 1 : 0;
       document.getElementById('btn-pause').textContent = Game.speed === 0 ? '▶' : '⏸';
     };
     document.getElementById('btn-speed').onclick = () => {
-      Game.speed = Game.speed === 1 ? 2 : 1;
-      document.getElementById('btn-speed').textContent = Game.speed === 2 ? '⏩' : '▶';
+      Game.speed = Game.speed === 1 ? 3 : 1;
+      document.getElementById('btn-speed').textContent = Game.speed === 3 ? '⏩' : '▶';
     };
-
-    document.getElementById('btn-build-toggle').onclick = () => {
-      document.getElementById('build-panel').classList.toggle('hidden');
-    };
-    document.getElementById('btn-close-build').onclick = () => {
-      document.getElementById('build-panel').classList.add('hidden');
-    };
-
     document.getElementById('btn-map').onclick = () => {
       this.renderPlanetMap();
       this.showScreen('screen-map');
@@ -373,12 +287,10 @@ const UI = {
     document.getElementById('btn-back-game').onclick = () => this.showScreen('screen-game');
   },
 
-  enterBase() {
+  enterGame() {
     this.showScreen('screen-game');
-    this.renderColony();
-    this.renderBuildMenu();
-    this.updateAll();
-    document.getElementById('build-panel').classList.remove('hidden');
+    this.switchTab('overview');
+    this.refresh();
     Game.startLoop();
   }
 };
